@@ -1,0 +1,5 @@
+Invoice Number,Date,Supplier,Customer,Subtotal,Tax,Total,Currency
+INV-2026-001,2026-03-30,"Apex Cloud Services LLC","Global Logistics Group",1250.00,125.00,1375.00,USD
+Description,Quantity,Unit Price,Amount
+Cloud Hosting Cluster,1,750.00,750.00
+Database Storage Tier,1,500.00,500.00

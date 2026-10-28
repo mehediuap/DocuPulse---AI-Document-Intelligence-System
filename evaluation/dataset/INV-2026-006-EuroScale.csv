@@ -1,0 +1,5 @@
+Invoice Number;Date;Supplier;Customer;Subtotal;Tax;Total;Currency
+INV-2026-006;2026-03-25;EuroScale Cloud GmbH;Bavaria Mobility AG;6200.00;1178.00;7378.00;EUR
+Description;Quantity;Unit Price;Amount
+Dedicated Cloud Kubernetes;2;2500.00;5000.00
+Enterprise Support SLA;1;1200.00;1200.00

@@ -1,0 +1,33 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R ] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>
+endobj
+4 0 obj
+<< /Length 508 >>
+stream
+BT /F1 12 Tf 50 720 Td (Invoice: INV-2026-001) Tj ET
+BT /F1 10 Tf 50 700 Td (Date: 2026-03-15) Tj ET
+BT /F1 10 Tf 50 680 Td (Supplier: Apex Cloud Services LLC) Tj ET
+BT /F1 10 Tf 50 660 Td (Customer: Global Logistics Group) Tj ET
+BT /F1 10 Tf 50 640 Td (Subtotal: 1250.00) Tj ET
+BT /F1 10 Tf 50 620 Td (Tax: 125.00) Tj ET
+BT /F1 10 Tf 50 600 Td (Total: 1375.00 USD) Tj ET
+BT /F1 9 Tf 50 560 Td (Cloud Hosting Cluster 1 750.00 750.00) Tj ET
+BT /F1 9 Tf 50 540 Td (Database Storage Tier 1 500.00 500.00) Tj ET
+
+endstream
+endobj
+xref
+0 5
+0000000000 65535 f 
+trailer
+<< /Root 1 0 R /Size 5 >>
+startxref
+767
+%%EOF

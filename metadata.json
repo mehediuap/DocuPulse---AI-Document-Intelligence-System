@@ -1,0 +1,6 @@
+{
+  "name": "DocuPulse - AI Document Intelligence System",
+  "description": "Enterprise-grade AI document intelligence platform for automated extraction, validation, and multi-format processing of invoices, financial statements, and tabular spreadsheets.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,724 @@
+{
+  "evaluation_metadata": {
+    "timestamp": "2026-10-28T19:12:11.250Z",
+    "sample_size": 10,
+    "dataset_path": "evaluation/dataset",
+    "ground_truth_path": "evaluation/ground_truth.json",
+    "extraction_adapter": "mock",
+    "model_alias": "deterministic_rule_parser",
+    "hardware_and_os": {
+      "node_version": "v24.13.0",
+      "platform": "win32",
+      "arch": "x64",
+      "cpu_count": 4,
+      "total_memory_gb": 11.8
+    }
+  },
+  "system_level_metrics": {
+    "document_success_rate_percentage": 100,
+    "document_failure_rate_percentage": 0,
+    "validation_concordance_rate_percentage": 90,
+    "overall_field_accuracy_percentage": 87.7,
+    "ocr_ground_truth_field_accuracy": {
+      "accuracy_percentage": 0,
+      "exact_matches": 0,
+      "fields_evaluated": 9,
+      "documents_evaluated": 1,
+      "provider_configured": false
+    }
+  },
+  "latency_metrics_ms": {
+    "min": 1,
+    "max": 249,
+    "mean": 85,
+    "median": 53,
+    "p95": 249,
+    "total_batch_duration_ms": 852
+  },
+  "field_level_accuracy": {
+    "invoice_number": {
+      "total_evaluated": 9,
+      "exact_matches": 8,
+      "accuracy_percentage": 88.9
+    },
+    "invoice_date": {
+      "total_evaluated": 9,
+      "exact_matches": 8,
+      "accuracy_percentage": 88.9
+    },
+    "supplier_name": {
+      "total_evaluated": 9,
+      "exact_matches": 8,
+      "accuracy_percentage": 88.9
+    },
+    "customer_name": {
+      "total_evaluated": 9,
+      "exact_matches": 8,
+      "accuracy_percentage": 88.9
+    },
+    "subtotal": {
+      "total_evaluated": 9,
+      "exact_matches": 8,
+      "accuracy_percentage": 88.9
+    },
+    "tax": {
+      "total_evaluated": 9,
+      "exact_matches": 8,
+      "accuracy_percentage": 88.9
+    },
+    "total": {
+      "total_evaluated": 9,
+      "exact_matches": 8,
+      "accuracy_percentage": 88.9
+    },
+    "currency": {
+      "total_evaluated": 9,
+      "exact_matches": 7,
+      "accuracy_percentage": 77.8
+    },
+    "line_items_count": {
+      "total_evaluated": 9,
+      "exact_matches": 8,
+      "accuracy_percentage": 88.9
+    }
+  },
+  "document_results": [
+    {
+      "id": "DOC-EVAL-001",
+      "filename": "INV-2026-001-ApexCloud.pdf",
+      "file_type": "pdf",
+      "is_corrupt": false,
+      "pipeline_status": "completed",
+      "expected_validation_status": "valid",
+      "actual_validation_status": "valid",
+      "status_concordance": true,
+      "processing_time_ms": 185,
+      "field_evaluations": {
+        "invoice_number": {
+          "matched": true,
+          "expected": "INV-2026-001",
+          "actual": "INV-2026-001"
+        },
+        "invoice_date": {
+          "matched": true,
+          "expected": "2026-03-15",
+          "actual": "2026-03-15"
+        },
+        "supplier_name": {
+          "matched": true,
+          "expected": "Apex Cloud Services LLC",
+          "actual": "Apex Cloud Services LLC"
+        },
+        "customer_name": {
+          "matched": true,
+          "expected": "Global Logistics Group",
+          "actual": "Global Logistics Group"
+        },
+        "subtotal": {
+          "matched": true,
+          "expected": 1250,
+          "actual": 1250
+        },
+        "tax": {
+          "matched": true,
+          "expected": 125,
+          "actual": 125
+        },
+        "total": {
+          "matched": true,
+          "expected": 1375,
+          "actual": 1375
+        },
+        "currency": {
+          "matched": true,
+          "expected": "USD",
+          "actual": "USD"
+        },
+        "line_items_count": {
+          "matched": true,
+          "expected": 2,
+          "actual": 2
+        }
+      },
+      "field_accuracy_percentage": 100,
+      "warnings": [],
+      "errors": []
+    },
+    {
+      "id": "DOC-EVAL-002",
+      "filename": "INV-2026-002-EnterpriseNetworks.pdf",
+      "file_type": "pdf",
+      "is_corrupt": false,
+      "pipeline_status": "completed",
+      "expected_validation_status": "valid",
+      "actual_validation_status": "valid",
+      "status_concordance": true,
+      "processing_time_ms": 68,
+      "field_evaluations": {
+        "invoice_number": {
+          "matched": true,
+          "expected": "INV-2026-002",
+          "actual": "INV-2026-002"
+        },
+        "invoice_date": {
+          "matched": true,
+          "expected": "2026-03-27",
+          "actual": "2026-03-27"
+        },
+        "supplier_name": {
+          "matched": true,
+          "expected": "Enterprise Data Networks Ltd",
+          "actual": "Enterprise Data Networks Ltd"
+        },
+        "customer_name": {
+          "matched": true,
+          "expected": "Horizon Financial Corp",
+          "actual": "Horizon Financial Corp"
+        },
+        "subtotal": {
+          "matched": true,
+          "expected": 8500,
+          "actual": 8500
+        },
+        "tax": {
+          "matched": true,
+          "expected": 850,
+          "actual": 850
+        },
+        "total": {
+          "matched": true,
+          "expected": 9350,
+          "actual": 9350
+        },
+        "currency": {
+          "matched": true,
+          "expected": "USD",
+          "actual": "USD"
+        },
+        "line_items_count": {
+          "matched": true,
+          "expected": 3,
+          "actual": 3
+        }
+      },
+      "field_accuracy_percentage": 100,
+      "warnings": [],
+      "errors": []
+    },
+    {
+      "id": "DOC-EVAL-003",
+      "filename": "INV-2026-003-NordicTech.csv",
+      "file_type": "csv",
+      "is_corrupt": false,
+      "pipeline_status": "warning",
+      "expected_validation_status": "valid",
+      "actual_validation_status": "valid",
+      "status_concordance": true,
+      "processing_time_ms": 53,
+      "field_evaluations": {
+        "invoice_number": {
+          "matched": true,
+          "expected": "INV-2026-003",
+          "actual": "INV-2026-003"
+        },
+        "invoice_date": {
+          "matched": true,
+          "expected": "2026-03-18",
+          "actual": "2026-03-18"
+        },
+        "supplier_name": {
+          "matched": true,
+          "expected": "Nordic Tech Solutions",
+          "actual": "Nordic Tech Solutions"
+        },
+        "customer_name": {
+          "matched": true,
+          "expected": "Vanguard Retail Corp",
+          "actual": "Vanguard Retail Corp"
+        },
+        "subtotal": {
+          "matched": true,
+          "expected": 4500,
+          "actual": 4500
+        },
+        "tax": {
+          "matched": true,
+          "expected": 450,
+          "actual": 450
+        },
+        "total": {
+          "matched": true,
+          "expected": 4950,
+          "actual": 4950
+        },
+        "currency": {
+          "matched": true,
+          "expected": "USD",
+          "actual": "USD"
+        },
+        "line_items_count": {
+          "matched": true,
+          "expected": 3,
+          "actual": 3
+        }
+      },
+      "field_accuracy_percentage": 100,
+      "warnings": [
+        "Auto-detected delimiter: \",\".",
+        "Inconsistent column count detected on 4 data rows; standardized to 8 columns."
+      ],
+      "errors": []
+    },
+    {
+      "id": "DOC-EVAL-004",
+      "filename": "INV-2026-004-PrecisionHardware.xlsx",
+      "file_type": "xlsx",
+      "is_corrupt": false,
+      "pipeline_status": "warning",
+      "expected_validation_status": "valid",
+      "actual_validation_status": "valid",
+      "status_concordance": true,
+      "processing_time_ms": 188,
+      "field_evaluations": {
+        "invoice_number": {
+          "matched": true,
+          "expected": "INV-2026-004",
+          "actual": "INV-2026-004"
+        },
+        "invoice_date": {
+          "matched": true,
+          "expected": "2026-03-20",
+          "actual": "2026-03-20"
+        },
+        "supplier_name": {
+          "matched": true,
+          "expected": "Precision Hardware Systems",
+          "actual": "Precision Hardware Systems"
+        },
+        "customer_name": {
+          "matched": true,
+          "expected": "Summit Engineering",
+          "actual": "Summit Engineering"
+        },
+        "subtotal": {
+          "matched": true,
+          "expected": 3200,
+          "actual": 3200
+        },
+        "tax": {
+          "matched": true,
+          "expected": 320,
+          "actual": 320
+        },
+        "total": {
+          "matched": true,
+          "expected": 3520,
+          "actual": 3520
+        },
+        "currency": {
+          "matched": true,
+          "expected": "USD",
+          "actual": "USD"
+        },
+        "line_items_count": {
+          "matched": true,
+          "expected": 2,
+          "actual": 2
+        }
+      },
+      "field_accuracy_percentage": 100,
+      "warnings": [
+        "Multi-worksheet workbook detected: 2 worksheets preserved."
+      ],
+      "errors": []
+    },
+    {
+      "id": "DOC-EVAL-005",
+      "filename": "INV-2026-005-BeaconSupplies.png",
+      "file_type": "image",
+      "is_corrupt": false,
+      "pipeline_status": "warning",
+      "expected_validation_status": "valid",
+      "actual_validation_status": "needs_review",
+      "status_concordance": false,
+      "processing_time_ms": 12,
+      "field_evaluations": {
+        "invoice_number": {
+          "matched": false,
+          "expected": "INV-2026-005",
+          "actual": null
+        },
+        "invoice_date": {
+          "matched": false,
+          "expected": "2026-03-22",
+          "actual": null
+        },
+        "supplier_name": {
+          "matched": false,
+          "expected": "Beacon Office Supplies",
+          "actual": null
+        },
+        "customer_name": {
+          "matched": false,
+          "expected": "Delta Dynamics",
+          "actual": null
+        },
+        "subtotal": {
+          "matched": false,
+          "expected": 800,
+          "actual": null
+        },
+        "tax": {
+          "matched": false,
+          "expected": 80,
+          "actual": null
+        },
+        "total": {
+          "matched": false,
+          "expected": 880,
+          "actual": null
+        },
+        "currency": {
+          "matched": false,
+          "expected": "USD",
+          "actual": null
+        },
+        "line_items_count": {
+          "matched": false,
+          "expected": 2,
+          "actual": 0
+        }
+      },
+      "field_accuracy_percentage": 0,
+      "warnings": [
+        "OCR is unavailable for this image payload; no invoice values were inferred. Configure Gemini Vision to enable image OCR.",
+        "MISSING_REQUIRED_FIELD: Required field \"invoice_number\" is missing or unparseable.",
+        "MISSING_REQUIRED_FIELD: Required field \"invoice_date\" is missing or unparseable.",
+        "MISSING_REQUIRED_FIELD: Required field \"supplier_name\" is missing or unparseable.",
+        "MISSING_REQUIRED_FIELD: Required field \"total\" is missing or unparseable.",
+        "MISSING_CURRENCY: Invoice currency code is missing; defaulting or cross-currency risks."
+      ],
+      "errors": []
+    },
+    {
+      "id": "DOC-EVAL-006",
+      "filename": "INV-2026-006-EuroScale.csv",
+      "file_type": "csv",
+      "is_corrupt": false,
+      "pipeline_status": "warning",
+      "expected_validation_status": "valid",
+      "actual_validation_status": "valid",
+      "status_concordance": true,
+      "processing_time_ms": 3,
+      "field_evaluations": {
+        "invoice_number": {
+          "matched": true,
+          "expected": "INV-2026-006",
+          "actual": "INV-2026-006"
+        },
+        "invoice_date": {
+          "matched": true,
+          "expected": "2026-03-25",
+          "actual": "2026-03-25"
+        },
+        "supplier_name": {
+          "matched": true,
+          "expected": "EuroScale Cloud GmbH",
+          "actual": "EuroScale Cloud GmbH"
+        },
+        "customer_name": {
+          "matched": true,
+          "expected": "Bavaria Mobility AG",
+          "actual": "Bavaria Mobility AG"
+        },
+        "subtotal": {
+          "matched": true,
+          "expected": 6200,
+          "actual": 6200
+        },
+        "tax": {
+          "matched": true,
+          "expected": 1178,
+          "actual": 1178
+        },
+        "total": {
+          "matched": true,
+          "expected": 7378,
+          "actual": 7378
+        },
+        "currency": {
+          "matched": true,
+          "expected": "EUR",
+          "actual": "EUR"
+        },
+        "line_items_count": {
+          "matched": true,
+          "expected": 2,
+          "actual": 2
+        }
+      },
+      "field_accuracy_percentage": 100,
+      "warnings": [
+        "Auto-detected delimiter: \";\".",
+        "Inconsistent column count detected on 3 data rows; standardized to 8 columns."
+      ],
+      "errors": []
+    },
+    {
+      "id": "DOC-EVAL-007",
+      "filename": "INV-2026-007-QuickPrint.pdf",
+      "file_type": "pdf",
+      "is_corrupt": false,
+      "pipeline_status": "completed",
+      "expected_validation_status": "needs_review",
+      "actual_validation_status": "needs_review",
+      "status_concordance": true,
+      "processing_time_ms": 44,
+      "field_evaluations": {
+        "invoice_number": {
+          "matched": true,
+          "expected": "INV-2026-007",
+          "actual": "INV-2026-007"
+        },
+        "invoice_date": {
+          "matched": true,
+          "expected": "2026-03-28",
+          "actual": "2026-03-28"
+        },
+        "supplier_name": {
+          "matched": true,
+          "expected": "QuickPrint Services",
+          "actual": "QuickPrint Services"
+        },
+        "customer_name": {
+          "matched": true,
+          "expected": null,
+          "actual": null
+        },
+        "subtotal": {
+          "matched": true,
+          "expected": null,
+          "actual": null
+        },
+        "tax": {
+          "matched": true,
+          "expected": 15,
+          "actual": 15
+        },
+        "total": {
+          "matched": true,
+          "expected": 165,
+          "actual": 165
+        },
+        "currency": {
+          "matched": false,
+          "expected": "USD",
+          "actual": null
+        },
+        "line_items_count": {
+          "matched": true,
+          "expected": 1,
+          "actual": 1
+        }
+      },
+      "field_accuracy_percentage": 88.9,
+      "warnings": [
+        "MISSING_CURRENCY: Invoice currency code is missing; defaulting or cross-currency risks."
+      ],
+      "errors": []
+    },
+    {
+      "id": "DOC-EVAL-008",
+      "filename": "INV-2026-008-StarlightMedia.xlsx",
+      "file_type": "xlsx",
+      "is_corrupt": false,
+      "pipeline_status": "warning",
+      "expected_validation_status": "invalid",
+      "actual_validation_status": "invalid",
+      "status_concordance": true,
+      "processing_time_ms": 249,
+      "field_evaluations": {
+        "invoice_number": {
+          "matched": true,
+          "expected": "INV-2026-008",
+          "actual": "INV-2026-008"
+        },
+        "invoice_date": {
+          "matched": true,
+          "expected": "2026-03-29",
+          "actual": "2026-03-29"
+        },
+        "supplier_name": {
+          "matched": true,
+          "expected": "Starlight Media Group",
+          "actual": "Starlight Media Group"
+        },
+        "customer_name": {
+          "matched": true,
+          "expected": "Acme Distribution",
+          "actual": "Acme Distribution"
+        },
+        "subtotal": {
+          "matched": true,
+          "expected": 2000,
+          "actual": 2000
+        },
+        "tax": {
+          "matched": true,
+          "expected": 200,
+          "actual": 200
+        },
+        "total": {
+          "matched": true,
+          "expected": 2450,
+          "actual": 2450
+        },
+        "currency": {
+          "matched": true,
+          "expected": "USD",
+          "actual": "USD"
+        },
+        "line_items_count": {
+          "matched": true,
+          "expected": 2,
+          "actual": 2
+        }
+      },
+      "field_accuracy_percentage": 100,
+      "warnings": [
+        "Multi-worksheet workbook detected: 2 worksheets preserved."
+      ],
+      "errors": [
+        "ARITHMETIC_TOTAL_MISMATCH: Financial mismatch: Subtotal (2000) + Tax (200) = 2200, but stated Total is 2450. Delta: 250."
+      ]
+    },
+    {
+      "id": "DOC-EVAL-009",
+      "filename": "INV-2026-009-DuplicateCandidate.csv",
+      "file_type": "csv",
+      "is_corrupt": false,
+      "pipeline_status": "warning",
+      "expected_validation_status": "needs_review",
+      "actual_validation_status": "needs_review",
+      "status_concordance": true,
+      "processing_time_ms": 49,
+      "field_evaluations": {
+        "invoice_number": {
+          "matched": true,
+          "expected": "INV-2026-001",
+          "actual": "INV-2026-001"
+        },
+        "invoice_date": {
+          "matched": true,
+          "expected": "2026-03-30",
+          "actual": "2026-03-30"
+        },
+        "supplier_name": {
+          "matched": true,
+          "expected": "Apex Cloud Services LLC",
+          "actual": "Apex Cloud Services LLC"
+        },
+        "customer_name": {
+          "matched": true,
+          "expected": "Global Logistics Group",
+          "actual": "Global Logistics Group"
+        },
+        "subtotal": {
+          "matched": true,
+          "expected": 1250,
+          "actual": 1250
+        },
+        "tax": {
+          "matched": true,
+          "expected": 125,
+          "actual": 125
+        },
+        "total": {
+          "matched": true,
+          "expected": 1375,
+          "actual": 1375
+        },
+        "currency": {
+          "matched": true,
+          "expected": "USD",
+          "actual": "USD"
+        },
+        "line_items_count": {
+          "matched": true,
+          "expected": 2,
+          "actual": 2
+        }
+      },
+      "field_accuracy_percentage": 100,
+      "warnings": [
+        "Auto-detected delimiter: \",\".",
+        "Inconsistent column count detected on 3 data rows; standardized to 8 columns.",
+        "DUPLICATE_INVOICE_CANDIDATE: Duplicate invoice candidate identified: Supplier \"Apex Cloud Services LLC\" and invoice #INV-2026-001."
+      ],
+      "errors": []
+    },
+    {
+      "id": "DOC-EVAL-010",
+      "filename": "INV-2026-010-CorruptPayload.pdf",
+      "file_type": "pdf",
+      "is_corrupt": true,
+      "pipeline_status": "failed",
+      "expected_validation_status": "failed",
+      "actual_validation_status": "failed",
+      "status_concordance": true,
+      "processing_time_ms": 1,
+      "field_evaluations": {
+        "invoice_number": {
+          "matched": true,
+          "expected": null,
+          "actual": null
+        },
+        "invoice_date": {
+          "matched": true,
+          "expected": null,
+          "actual": null
+        },
+        "supplier_name": {
+          "matched": true,
+          "expected": null,
+          "actual": null
+        },
+        "customer_name": {
+          "matched": true,
+          "expected": null,
+          "actual": null
+        },
+        "subtotal": {
+          "matched": true,
+          "expected": null,
+          "actual": null
+        },
+        "tax": {
+          "matched": true,
+          "expected": null,
+          "actual": null
+        },
+        "total": {
+          "matched": true,
+          "expected": null,
+          "actual": null
+        },
+        "currency": {
+          "matched": true,
+          "expected": null,
+          "actual": null
+        },
+        "line_items_count": {
+          "matched": false,
+          "expected": 0,
+          "actual": null
+        }
+      },
+      "field_accuracy_percentage": 100,
+      "warnings": [],
+      "errors": [
+        "Processing error during PDF parsing: Corrupted or invalid PDF format: Missing %PDF- header magic bytes."
+      ]
+    }
+  ]
+}

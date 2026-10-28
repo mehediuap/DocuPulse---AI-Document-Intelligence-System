@@ -1,0 +1,6 @@
+Invoice Number,Date,Supplier,Customer,Subtotal,Tax,Total,Currency
+INV-2026-003,2026-03-18,"Nordic Tech Solutions","Vanguard Retail Corp",4500.00,450.00,4950.00,USD
+Description,Quantity,Unit Price,Amount
+Cloud Architecture Consulting,10,300.00,3000.00
+Security Hardening Review,5,200.00,1000.00
+DevOps Pipeline Automation,1,500.00,500.00

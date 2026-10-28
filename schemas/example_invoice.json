@@ -1,0 +1,85 @@
+{
+  "$schema": "./invoice_schema.py",
+  "invoice_number": "INV-2026-9041",
+  "invoice_date": "2026-10-15",
+  "supplier_name": "Apex Microelectronics Inc.",
+  "customer_name": "Quantum Robotics Laboratories",
+  "subtotal": 14902.50,
+  "tax": 1192.20,
+  "total": 16094.70,
+  "currency": "USD",
+  "line_items": [
+    {
+      "description": "Silicon Wafer Substrate 300mm",
+      "quantity": 10.0,
+      "unit_price": 1200.00,
+      "amount": 12000.00,
+      "evidence": "Silicon Wafer Substrate 300mm | Qty: 10 | Unit: $1200.00 | Total: $12000.00",
+      "page_reference": 1
+    },
+    {
+      "description": "Etching Chemical Reagent Grade A",
+      "quantity": 5.0,
+      "unit_price": 450.50,
+      "amount": 2252.50,
+      "evidence": "Etching Chemical Reagent Grade A | Qty: 5 | Unit: $450.50 | Total: $2252.50",
+      "page_reference": 1
+    },
+    {
+      "description": "Cleanroom Overnight Express Freight",
+      "quantity": 1.0,
+      "unit_price": 650.00,
+      "amount": 650.00,
+      "evidence": "Cleanroom Overnight Express Freight | Qty: 1 | Unit: $650.00 | Total: $650.00",
+      "page_reference": 1
+    }
+  ],
+  "evidence": {
+    "invoice_number": {
+      "snippet": "Invoice #: INV-2026-9041",
+      "page_reference": 1,
+      "confidence": 0.99
+    },
+    "invoice_date": {
+      "snippet": "Issue Date: October 15, 2026",
+      "page_reference": 1,
+      "confidence": 0.98
+    },
+    "supplier_name": {
+      "snippet": "Apex Microelectronics Inc.\n400 Technology Way",
+      "page_reference": 1,
+      "confidence": 0.97
+    },
+    "customer_name": {
+      "snippet": "Billed To: Quantum Robotics Laboratories",
+      "page_reference": 1,
+      "confidence": 0.96
+    },
+    "subtotal": {
+      "snippet": "Subtotal: $14,902.50",
+      "page_reference": 1,
+      "confidence": 0.99
+    },
+    "tax": {
+      "snippet": "Sales Tax (8%): $1,192.20",
+      "page_reference": 1,
+      "confidence": 0.99
+    },
+    "total": {
+      "snippet": "Total Balance Due: $16,094.70 USD",
+      "page_reference": 1,
+      "confidence": 0.99
+    },
+    "currency": {
+      "snippet": "$16,094.70 USD",
+      "page_reference": 1,
+      "confidence": 1.0
+    }
+  },
+  "extraction_metadata": {
+    "mode": "mock_rule_based",
+    "model_used": "deterministic_parser_v1",
+    "processing_time_ms": 14,
+    "warnings": []
+  }
+}

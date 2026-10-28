@@ -1,0 +1,192 @@
+[
+  {
+    "id": "DOC-EVAL-001",
+    "filename": "INV-2026-001-ApexCloud.pdf",
+    "file_type": "pdf",
+    "is_corrupt": false,
+    "ground_truth": {
+      "invoice_number": "INV-2026-001",
+      "invoice_date": "2026-03-15",
+      "supplier_name": "Apex Cloud Services LLC",
+      "customer_name": "Global Logistics Group",
+      "subtotal": 1250.00,
+      "tax": 125.00,
+      "total": 1375.00,
+      "currency": "USD",
+      "line_items_count": 2
+    },
+    "expected_validation_status": "valid",
+    "description": "Standard digital single-page PDF invoice with valid arithmetic and complete fields"
+  },
+  {
+    "id": "DOC-EVAL-002",
+    "filename": "INV-2026-002-EnterpriseNetworks.pdf",
+    "file_type": "pdf",
+    "is_corrupt": false,
+    "ground_truth": {
+      "invoice_number": "INV-2026-002",
+      "invoice_date": "2026-03-27",
+      "supplier_name": "Enterprise Data Networks Ltd",
+      "customer_name": "Horizon Financial Corp",
+      "subtotal": 8500.00,
+      "tax": 850.00,
+      "total": 9350.00,
+      "currency": "USD",
+      "line_items_count": 3
+    },
+    "expected_validation_status": "valid",
+    "description": "Multi-page digital PDF invoice spanning 2 pages with line items on page 1 and totals on page 2"
+  },
+  {
+    "id": "DOC-EVAL-003",
+    "filename": "INV-2026-003-NordicTech.csv",
+    "file_type": "csv",
+    "is_corrupt": false,
+    "ground_truth": {
+      "invoice_number": "INV-2026-003",
+      "invoice_date": "2026-03-18",
+      "supplier_name": "Nordic Tech Solutions",
+      "customer_name": "Vanguard Retail Corp",
+      "subtotal": 4500.00,
+      "tax": 450.00,
+      "total": 4950.00,
+      "currency": "USD",
+      "line_items_count": 3
+    },
+    "expected_validation_status": "valid",
+    "description": "Standard RFC-4180 comma-delimited CSV invoice export with quoted text"
+  },
+  {
+    "id": "DOC-EVAL-004",
+    "filename": "INV-2026-004-PrecisionHardware.xlsx",
+    "file_type": "xlsx",
+    "is_corrupt": false,
+    "ground_truth": {
+      "invoice_number": "INV-2026-004",
+      "invoice_date": "2026-03-20",
+      "supplier_name": "Precision Hardware Systems",
+      "customer_name": "Summit Engineering",
+      "subtotal": 3200.00,
+      "tax": 320.00,
+      "total": 3520.00,
+      "currency": "USD",
+      "line_items_count": 2
+    },
+    "expected_validation_status": "valid",
+    "description": "Multi-sheet OpenXML Excel workbook with Header Summary and LineItems worksheets"
+  },
+  {
+    "id": "DOC-EVAL-005",
+    "filename": "INV-2026-005-BeaconSupplies.png",
+    "file_type": "image",
+    "is_corrupt": false,
+    "ground_truth": {
+      "invoice_number": "INV-2026-005",
+      "invoice_date": "2026-03-22",
+      "supplier_name": "Beacon Office Supplies",
+      "customer_name": "Delta Dynamics",
+      "subtotal": 800.00,
+      "tax": 80.00,
+      "total": 880.00,
+      "currency": "USD",
+      "line_items_count": 2
+    },
+    "expected_validation_status": "valid",
+    "description": "Raster PNG invoice receipt processed through OCR extraction pipeline"
+  },
+  {
+    "id": "DOC-EVAL-006",
+    "filename": "INV-2026-006-EuroScale.csv",
+    "file_type": "csv",
+    "is_corrupt": false,
+    "ground_truth": {
+      "invoice_number": "INV-2026-006",
+      "invoice_date": "2026-03-25",
+      "supplier_name": "EuroScale Cloud GmbH",
+      "customer_name": "Bavaria Mobility AG",
+      "subtotal": 6200.00,
+      "tax": 1178.00,
+      "total": 7378.00,
+      "currency": "EUR",
+      "line_items_count": 2
+    },
+    "expected_validation_status": "valid",
+    "description": "Semicolon-delimited European invoice with EUR currency and 19% VAT"
+  },
+  {
+    "id": "DOC-EVAL-007",
+    "filename": "INV-2026-007-QuickPrint.pdf",
+    "file_type": "pdf",
+    "is_corrupt": false,
+    "ground_truth": {
+      "invoice_number": "INV-2026-007",
+      "invoice_date": "2026-03-28",
+      "supplier_name": "QuickPrint Services",
+      "customer_name": null,
+      "subtotal": null,
+      "tax": 15.00,
+      "total": 165.00,
+      "currency": "USD",
+      "line_items_count": 1
+    },
+    "expected_validation_status": "needs_review",
+    "description": "Incomplete invoice intentionally omitting customer and subtotal to test strict null handling"
+  },
+  {
+    "id": "DOC-EVAL-008",
+    "filename": "INV-2026-008-StarlightMedia.xlsx",
+    "file_type": "xlsx",
+    "is_corrupt": false,
+    "ground_truth": {
+      "invoice_number": "INV-2026-008",
+      "invoice_date": "2026-03-29",
+      "supplier_name": "Starlight Media Group",
+      "customer_name": "Acme Distribution",
+      "subtotal": 2000.00,
+      "tax": 200.00,
+      "total": 2450.00,
+      "currency": "USD",
+      "line_items_count": 2
+    },
+    "expected_validation_status": "invalid",
+    "description": "Invoice with intentional mathematical mismatch (2000 subtotal + 200 tax != 2450 total)"
+  },
+  {
+    "id": "DOC-EVAL-009",
+    "filename": "INV-2026-009-DuplicateCandidate.csv",
+    "file_type": "csv",
+    "is_corrupt": false,
+    "ground_truth": {
+      "invoice_number": "INV-2026-001",
+      "invoice_date": "2026-03-30",
+      "supplier_name": "Apex Cloud Services LLC",
+      "customer_name": "Global Logistics Group",
+      "subtotal": 1250.00,
+      "tax": 125.00,
+      "total": 1375.00,
+      "currency": "USD",
+      "line_items_count": 2
+    },
+    "expected_validation_status": "needs_review",
+    "description": "Duplicate invoice candidate matching supplier and invoice_number of DOC-EVAL-001"
+  },
+  {
+    "id": "DOC-EVAL-010",
+    "filename": "INV-2026-010-CorruptPayload.pdf",
+    "file_type": "pdf",
+    "is_corrupt": true,
+    "ground_truth": {
+      "invoice_number": null,
+      "invoice_date": null,
+      "supplier_name": null,
+      "customer_name": null,
+      "subtotal": null,
+      "tax": null,
+      "total": null,
+      "currency": null,
+      "line_items_count": 0
+    },
+    "expected_validation_status": "failed",
+    "description": "Corrupted binary file stream to verify fault-isolation, structured error reporting and zero crashes"
+  }
+]

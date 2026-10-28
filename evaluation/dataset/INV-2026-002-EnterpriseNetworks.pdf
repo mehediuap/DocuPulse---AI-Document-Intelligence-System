@@ -1,0 +1,44 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R 4 0 R ] /Count 2 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /Contents 5 0 R >>
+endobj
+4 0 obj
+<< /Type /Page /Parent 2 0 R /Contents 6 0 R >>
+endobj
+5 0 obj
+<< /Length 454 >>
+stream
+BT /F1 12 Tf 50 720 Td (Invoice: INV-2026-002 Page 1) Tj ET
+BT /F1 10 Tf 50 700 Td (Date: 2026-03-27) Tj ET
+BT /F1 10 Tf 50 680 Td (Supplier: Enterprise Data Networks Ltd) Tj ET
+BT /F1 10 Tf 50 660 Td (Customer: Horizon Financial Corp) Tj ET
+BT /F1 9 Tf 50 620 Td (Fiber Gateway Transit 2 2000.00 4000.00) Tj ET
+BT /F1 9 Tf 50 600 Td (Network Security Suite 1 3000.00 3000.00) Tj ET
+BT /F1 9 Tf 50 580 Td (Direct Connect Circuit 1 1500.00 1500.00) Tj ET
+
+endstream
+endobj
+6 0 obj
+<< /Length 202 >>
+stream
+BT /F1 12 Tf 50 720 Td (Invoice: INV-2026-002 Page 2) Tj ET
+BT /F1 10 Tf 50 700 Td (Subtotal: 8500.00) Tj ET
+BT /F1 10 Tf 50 680 Td (Tax: 850.00) Tj ET
+BT /F1 10 Tf 50 660 Td (Total: 9350.00 USD) Tj ET
+
+endstream
+endobj
+xref
+0 7
+0000000000 65535 f 
+trailer
+<< /Root 1 0 R /Size 7 >>
+startxref
+1035
+%%EOF
