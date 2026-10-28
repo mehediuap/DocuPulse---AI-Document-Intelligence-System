@@ -7,3 +7,6 @@ coverage/
 .env*
 !.env.example
 /data/uploads/
+*.db
+*.db-wal
+*.db-shm

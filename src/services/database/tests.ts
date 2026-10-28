@@ -62,6 +62,11 @@ export async function runDatabaseAndSearchTests(): Promise<{
     if (!tableNames.includes('validations')) throw new Error('Missing validations table');
     if (!tableNames.includes('processing_history')) throw new Error('Missing processing_history table');
     if (!tableNames.includes('audit_trail')) throw new Error('Missing audit_trail table');
+    const triggerNames = (testDb.prepare(
+      "SELECT name FROM sqlite_master WHERE type='trigger'"
+    ).all() as Array<{ name: string }>).map(trigger => trigger.name);
+    if (!triggerNames.includes('audit_trail_no_update')) throw new Error('Missing append-only audit update trigger');
+    if (!triggerNames.includes('audit_trail_no_delete')) throw new Error('Missing append-only audit delete trigger');
   });
 
   // 2. Full document persistence & retrieval
@@ -246,6 +251,20 @@ export async function runDatabaseAndSearchTests(): Promise<{
     if (docWithAudit.auditTrail.length !== 1) throw new Error(`Expected 1 audit entry, got ${docWithAudit.auditTrail.length}`);
     if (docWithAudit.auditTrail[0].newValue !== 'INV-2026-8800-REV1') throw new Error('Audit newValue mismatch');
     if (docWithAudit.auditTrail[0].author !== 'senior_auditor') throw new Error('Audit author mismatch');
+    for (const statement of [
+      'UPDATE audit_trail SET reason = ? WHERE document_id = ?',
+      'DELETE FROM audit_trail WHERE document_id = ?',
+    ]) {
+      let blocked = false;
+      try {
+        testDb.prepare(statement).run(
+          ...(statement.startsWith('UPDATE') ? ['tampered', 'doc_test_persistence_01'] : ['doc_test_persistence_01'])
+        );
+      } catch {
+        blocked = true;
+      }
+      if (!blocked) throw new Error(`Audit mutation was not blocked: ${statement.split(' ')[0]}`);
+    }
   });
 
   // 9. Semantic search vector similarity and cosine ranking
@@ -257,6 +276,8 @@ export async function runDatabaseAndSearchTests(): Promise<{
       fileType: 'pdf',
       mimeType: 'application/pdf',
       fileSizeBytes: 2048,
+      rawBuffer: new Uint8Array([1, 2, 3]),
+      storagePath: 'C:\\private\\uploads\\invoice.pdf',
       status: 'completed',
       retryCount: 0,
       createdAt: new Date().toISOString(),
@@ -310,6 +331,12 @@ export async function runDatabaseAndSearchTests(): Promise<{
     }
     if (searchRes.results[0].similarityScore <= 0) {
       throw new Error(`Expected positive cosine similarity score, got ${searchRes.results[0].similarityScore}`);
+    }
+    if ('rawBuffer' in searchRes.results[0].document) {
+      throw new Error('Semantic search result leaked the source document bytes');
+    }
+    if ('storagePath' in searchRes.results[0].document) {
+      throw new Error('Semantic search result leaked the internal storage path');
     }
   });
 

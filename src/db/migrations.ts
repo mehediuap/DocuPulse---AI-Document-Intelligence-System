@@ -153,4 +153,26 @@ export function runMigrations(db: Database.Database): void {
       new Date().toISOString()
     );
   }
+
+  const versionFour = db.prepare('SELECT version FROM schema_migrations WHERE version = 4').get();
+  if (!versionFour) {
+    db.transaction(() => {
+      db.exec(`
+        CREATE TRIGGER IF NOT EXISTS audit_trail_no_update
+        BEFORE UPDATE ON audit_trail
+        BEGIN
+          SELECT RAISE(ABORT, 'audit trail is append-only');
+        END;
+
+        CREATE TRIGGER IF NOT EXISTS audit_trail_no_delete
+        BEFORE DELETE ON audit_trail
+        BEGIN
+          SELECT RAISE(ABORT, 'audit trail is append-only');
+        END;
+      `);
+      db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (4, ?)').run(
+        new Date().toISOString()
+      );
+    })();
+  }
 }

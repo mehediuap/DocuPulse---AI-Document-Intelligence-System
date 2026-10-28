@@ -51,14 +51,8 @@ export async function processPdf(
     }
   }
 
-  // 3. Extract text from stream blocks: stream ... endstream
-  const streamRegex = /stream\r?\n([\s\S]*?)\r?\nendstream/g;
-  let streamMatch;
-  const rawStreams: string[] = [];
-
-  while ((streamMatch = streamRegex.exec(binaryString)) !== null) {
-    rawStreams.push(streamMatch[1]);
-  }
+  // 3. Extract stream blocks with bounded forward scans rather than a backtracking regex.
+  const rawStreams = extractPdfStreams(binaryString);
 
   // Parse text operators from uncompressed text or BT ... ET blocks
   const extractedTextChunks: string[] = [];
@@ -131,6 +125,43 @@ export async function processPdf(
     warnings,
     rawText: consolidatedText,
   };
+}
+
+function extractPdfStreams(pdfContent: string): string[] {
+  const streams: string[] = [];
+  let cursor = 0;
+
+  while (cursor < pdfContent.length) {
+    const streamStart = pdfContent.indexOf('stream', cursor);
+    if (streamStart < 0) break;
+
+    const dataStart = streamStart + 'stream'.length;
+    let bodyStart: number;
+    if (pdfContent.startsWith('\r\n', dataStart)) {
+      bodyStart = dataStart + 2;
+    } else if (pdfContent[dataStart] === '\n') {
+      bodyStart = dataStart + 1;
+    } else {
+      cursor = dataStart;
+      continue;
+    }
+
+    const endStream = pdfContent.indexOf('endstream', bodyStart);
+    if (endStream < 0) break;
+
+    let bodyEnd = endStream;
+    if (pdfContent[bodyEnd - 1] === '\n') {
+      bodyEnd--;
+      if (pdfContent[bodyEnd - 1] === '\r') bodyEnd--;
+    } else if (pdfContent[bodyEnd - 1] === '\r') {
+      bodyEnd--;
+    }
+
+    streams.push(pdfContent.slice(bodyStart, bodyEnd));
+    cursor = endStream + 'endstream'.length;
+  }
+
+  return streams;
 }
 
 /**

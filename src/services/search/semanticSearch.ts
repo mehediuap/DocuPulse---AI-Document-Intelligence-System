@@ -18,7 +18,7 @@ export interface SemanticSearchResult {
   documentId: string;
   similarityScore: number;
   matchedSnippet?: string;
-  document: DocumentRecord;
+  document: Omit<DocumentRecord, 'rawBuffer' | 'storagePath'>;
 }
 
 export interface SemanticSearchResponse {
@@ -112,11 +112,12 @@ export class SemanticSearchService {
       if (docVector && docVector.length === queryVector.length) {
         const similarity = cosineSimilarity(queryVector, docVector);
         if (similarity >= minSimilarity) {
+          const { rawBuffer, storagePath, ...safeDocument } = doc;
           scored.push({
             documentId: doc.id,
             similarityScore: Math.round(similarity * 1000) / 1000,
             matchedSnippet: textToEmbed.substring(0, 180).replace(/\n+/g, ' '),
-            document: doc,
+            document: safeDocument,
           });
         }
       }

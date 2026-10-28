@@ -37,17 +37,7 @@ export function subtractDecimals(a: number, b: number): number {
 /**
  * Multiplies quantity and unit price safely, rounding to two decimal places.
  */
-CREATE TRIGGER IF NOT EXISTS audit_trail_no_update
-BEFORE UPDATE ON audit_trail
-BEGIN
-  SELECT RAISE(ABORT, 'audit trail is append-only');
-END;
-
-CREATE TRIGGER IF NOT EXISTS audit_trail_no_delete
-BEFORE DELETE ON audit_trail
-BEGIN
-  SELECT RAISE(ABORT, 'audit trail is append-only');
-END;export function multiplyDecimals(quantity: number, unitPrice: number): number {
+export function multiplyDecimals(quantity: number, unitPrice: number): number {
   if (isNaN(quantity) || isNaN(unitPrice)) return 0;
   return Math.round(quantity * unitPrice * 100) / 100;
 }

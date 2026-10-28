@@ -1,6 +1,7 @@
 import * as XLSX from 'xlsx';
 import { documentPipeline } from './documentPipeline.ts';
 import { sanitizeFilename } from './security.ts';
+import { processPdf } from './pdfProcessor.ts';
 
 // Helper to create a minimal valid digital PDF byte array
 export function createDigitalPdfBytes(invoiceNo: string, pages = 1): Uint8Array {
@@ -272,6 +273,17 @@ export async function runDocumentProcessingTests(): Promise<{
     });
     if (res.status !== 'failed') throw new Error(`Corrupted PDF should fail safely, got ${res.status}`);
     if (res.errors.length === 0) throw new Error('Failed document must include error description');
+  });
+
+  await test('PDF stream scanning handles repeated unterminated stream markers efficiently', async () => {
+    const malformedPdf = `%PDF-1.4\n${'stream\n'.repeat(20_000)}xref\ntrailer\n<< /Root 1 0 R >>\nstartxref\n0\n%%EOF`;
+    const bytes = new TextEncoder().encode(malformedPdf);
+    const start = performance.now();
+    await processPdf(bytes, 'malformed-streams.pdf');
+    const durationMs = performance.now() - start;
+    if (durationMs > 2_000) {
+      throw new Error(`Malformed PDF stream scan took too long: ${Math.round(durationMs)}ms`);
+    }
   });
 
   // 11. Unsupported format rejection
