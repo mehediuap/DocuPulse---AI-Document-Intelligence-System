@@ -1,5 +1,6 @@
 // Ensure hermetic offline execution during test runs without paid API dependencies
 process.env.EXTRACTION_MODE = 'mock';
+process.env.OCR_PROVIDER = 'mock';
 
 import { runDocumentProcessingTests } from '../src/services/document/tests.ts';
 import { runInformationExtractionTests } from '../src/services/extraction/tests.ts';
@@ -71,13 +72,11 @@ async function main() {
   console.log('================================================================');
 
   if (failed > 0) {
-    process.exit(1);
-  } else {
-    process.exit(0);
+    process.exitCode = 1;
   }
 }
 
 main().catch(err => {
   console.error('Test execution failed:', err);
-  process.exit(1);
+  process.exitCode = 1;
 });

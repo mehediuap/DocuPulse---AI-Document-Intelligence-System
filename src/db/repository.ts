@@ -121,7 +121,150 @@ export class DocumentRepository {
     this.db.transaction(() => {
       this.saveDocument(doc);
       this.recordProcessingHistory(doc.id, attemptNumber, status, durationMs, errorMessage);
+      const now = new Date().toISOString();
+      this.db.prepare(`
+        INSERT INTO processing_jobs (document_id, status, attempt_number, queued_at, updated_at, error_message)
+        VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT(document_id) DO UPDATE SET
+          status = excluded.status,
+          attempt_number = excluded.attempt_number,
+          queued_at = CASE WHEN excluded.status = 'queued' THEN excluded.queued_at ELSE processing_jobs.queued_at END,
+          updated_at = excluded.updated_at,
+          error_message = excluded.error_message
+      `).run(
+        doc.id,
+        status,
+        attemptNumber,
+        status === 'queued' ? now : now,
+        now,
+        errorMessage || null
+      );
     })();
+  }
+
+  public claimNextQueuedJob(
+    workerId: string,
+    leaseDurationMs: number
+  ): { documentId: string; attemptNumber: number } | null {
+    const now = new Date();
+    const nowIso = now.toISOString();
+    const leaseExpiresAt = new Date(now.getTime() + leaseDurationMs).toISOString();
+    const claim = this.db.transaction(() => {
+      const candidate = this.db.prepare(`
+        SELECT document_id, attempt_number
+        FROM processing_jobs
+        WHERE status = 'queued'
+          OR (status = 'processing' AND lease_expires_at IS NOT NULL AND lease_expires_at <= ?)
+        ORDER BY queued_at ASC
+        LIMIT 1
+      `).get(nowIso) as { document_id: string; attempt_number: number } | undefined;
+      if (!candidate) return null;
+
+      const result = this.db.prepare(`
+        UPDATE processing_jobs
+        SET status = 'processing', lease_owner = ?, lease_expires_at = ?,
+            heartbeat_at = ?, updated_at = ?, error_message = NULL
+        WHERE document_id = ?
+          AND (status = 'queued'
+            OR (status = 'processing' AND lease_expires_at IS NOT NULL AND lease_expires_at <= ?))
+      `).run(workerId, leaseExpiresAt, nowIso, nowIso, candidate.document_id, nowIso);
+      return result.changes === 1
+        ? { documentId: candidate.document_id, attemptNumber: candidate.attempt_number }
+        : null;
+    });
+    return claim.immediate();
+  }
+
+  public renewProcessingLease(documentId: string, workerId: string, leaseDurationMs: number): boolean {
+    const now = new Date();
+    const nowIso = now.toISOString();
+    const result = this.db.prepare(`
+      UPDATE processing_jobs
+      SET lease_expires_at = ?, heartbeat_at = ?, updated_at = ?
+      WHERE document_id = ? AND status = 'processing' AND lease_owner = ?
+        AND lease_expires_at > ?
+    `).run(
+      new Date(now.getTime() + leaseDurationMs).toISOString(),
+      nowIso,
+      nowIso,
+      documentId,
+      workerId,
+      nowIso
+    );
+    return result.changes === 1;
+  }
+
+  public finishClaimedJob(
+    doc: DocumentRecord,
+    attemptNumber: number,
+    workerId: string,
+    status: string,
+    durationMs?: number,
+    errorMessage?: string
+  ): boolean {
+    const now = new Date().toISOString();
+    const finish = this.db.transaction(() => {
+      const result = this.db.prepare(`
+        UPDATE processing_jobs
+        SET status = ?, updated_at = ?, error_message = ?,
+            lease_owner = NULL, lease_expires_at = NULL, heartbeat_at = NULL
+        WHERE document_id = ? AND status = 'processing' AND lease_owner = ?
+          AND lease_expires_at > ?
+      `).run(status, now, errorMessage || null, doc.id, workerId, now);
+      if (result.changes !== 1) return false;
+      this.saveDocument(doc);
+      this.recordProcessingHistory(doc.id, attemptNumber, status, durationMs, errorMessage);
+      return true;
+    });
+    return finish.immediate();
+  }
+
+  public getDocumentStatusCounts(): Record<string, number> {
+    const rows = this.db.prepare(`
+      SELECT status, COUNT(*) AS count FROM documents GROUP BY status
+    `).all() as Array<{ status: string; count: number }>;
+    return Object.fromEntries(rows.map(row => [row.status, row.count]));
+  }
+
+  public getProcessingJobStatus(documentId: string): string | undefined {
+    const row = this.db.prepare(
+      'SELECT status FROM processing_jobs WHERE document_id = ?'
+    ).get(documentId) as { status: string } | undefined;
+    return row?.status;
+  }
+
+  public getSearchVector(documentId: string, model: string, contentHash: string): number[] | undefined {
+    const row = this.db.prepare(`
+      SELECT content_hash, vector_json
+      FROM search_embeddings
+      WHERE document_id = ? AND model = ?
+    `).get(documentId, model) as { content_hash: string; vector_json: string } | undefined;
+    if (!row || row.content_hash !== contentHash) return undefined;
+
+    const vector: unknown = JSON.parse(row.vector_json);
+    if (!Array.isArray(vector) || vector.some(value => typeof value !== 'number' || !Number.isFinite(value))) {
+      throw new Error(`Stored search vector for document ${documentId} is malformed.`);
+    }
+    return vector;
+  }
+
+  public saveSearchVector(
+    documentId: string,
+    model: string,
+    contentHash: string,
+    vector: number[]
+  ): void {
+    if (vector.some(value => !Number.isFinite(value))) {
+      throw new Error('Search vector contains a non-finite value.');
+    }
+    this.db.prepare(`
+      INSERT INTO search_embeddings (document_id, model, content_hash, vector_json, updated_at)
+      VALUES (?, ?, ?, ?, ?)
+      ON CONFLICT(document_id, model) DO UPDATE SET
+        content_hash = excluded.content_hash,
+        vector_json = excluded.vector_json,
+        updated_at = excluded.updated_at
+    `).run(documentId, model, contentHash, JSON.stringify(vector), new Date().toISOString());
   }
 
   public saveCorrection(doc: DocumentRecord, entries: AuditEntry[]): void {
@@ -352,6 +495,43 @@ export class DocumentRepository {
   public getAllDocuments(): DocumentRecord[] {
     const rows = this.db.prepare('SELECT id FROM documents ORDER BY uploaded_at DESC').all() as Array<{ id: string }>;
     return rows.map(row => this.getDocument(row.id)).filter((doc): doc is DocumentRecord => doc !== null);
+  }
+
+  public getInvoiceExtractionsExcept(documentId: string): InvoiceExtractionResult[] {
+    const rows = this.db.prepare(`
+      SELECT invoice_number, invoice_date, supplier_name, customer_name,
+             subtotal, tax, total, currency, line_items_json, evidence_json,
+             extraction_metadata_json
+      FROM extractions
+      WHERE document_id <> ?
+    `).all(documentId) as Array<{
+      invoice_number: string | null;
+      invoice_date: string | null;
+      supplier_name: string | null;
+      customer_name: string | null;
+      subtotal: number | null;
+      tax: number | null;
+      total: number | null;
+      currency: string | null;
+      line_items_json: string | null;
+      evidence_json: string | null;
+      extraction_metadata_json: string | null;
+    }>;
+    return rows.map(row => ({
+      invoice_number: row.invoice_number,
+      invoice_date: row.invoice_date,
+      supplier_name: row.supplier_name,
+      customer_name: row.customer_name,
+      subtotal: row.subtotal,
+      tax: row.tax,
+      total: row.total,
+      currency: row.currency,
+      line_items: row.line_items_json ? JSON.parse(row.line_items_json) : [],
+      evidence: row.evidence_json ? JSON.parse(row.evidence_json) : {},
+      extraction_metadata: row.extraction_metadata_json
+        ? JSON.parse(row.extraction_metadata_json)
+        : { mode: 'mock_rule_based', processing_time_ms: 0, warnings: [] },
+    }));
   }
 
   /**

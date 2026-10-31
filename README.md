@@ -12,10 +12,10 @@ Provides robust, fault-tolerant ingestion pipelines for business documents and s
 
 | Format | Extension | Capabilities | Boundary Preservation |
 | :--- | :--- | :--- | :--- |
-| **Digital PDF** | `.pdf` | Native text operator extraction (`BT..ET`, `Tj`, `TJ`); page assignment is heuristic | Page labels are preserved; exact source layout is not guaranteed |
-| **Scanned PDF** | `.pdf` | Image-only PDFs are routed to OCR; a configured OCR provider is required for text | Current OCR call processes the document as one page |
-| **Images** | `.jpg`, `.jpeg`, `.png` | Dimension header parsing (SOF0/IHDR) and OCR when a provider is configured | Document boundary with provider confidence |
-| **Multi-page TIFF** | `.tif`, `.tiff` | Traverses Image File Directories (IFD chain) and reports frame count | OCR text is not yet isolated per frame; a warning is emitted |
+| **Digital PDF** | `.pdf` | PDF.js extracts page text, including Flate-compressed streams | Page text is preserved; exact visual layout is not guaranteed |
+| **Scanned PDF** | `.pdf` | Each textless page is rendered independently and routed through configured OCR | Page boundaries and available OCR confidence are preserved |
+| **Images** | `.jpg`, `.jpeg`, `.png` | Sharp image normalization/preprocessing followed by Tesseract.js or Gemini Vision | Provider confidence is preserved when available |
+| **Multi-page TIFF** | `.tif`, `.tiff` | Sharp enumerates frames; each frame is independently preprocessed and OCR'd | Processing is limited to 50 frames and 100 million pixels per frame |
 | **Modern Spreadsheets** | `.xlsx` | OpenXML workbook parsing with multi-sheet extraction | Preserves multiple worksheet tabs, row coordinates, column headers |
 | **Legacy Spreadsheets** | `.xls` | BIFF8/BIFF5 binary parser with backward-compatibility audit | Worksheet tabs and cell grids |
 | **Delimited Data** | `.csv` | RFC-4180 parsing with auto-detected delimiter (`,`, `;`, `\t`, `\|`) & multi-line quoted fields | Row numbers and column headers |
@@ -61,6 +61,9 @@ Transforms raw unformatted document text into validated, schema-compliant JSON s
 ### Google GenAI Environment
 Copy `.env.example` to `.env` and set `GEMINI_API_KEY` for Gemini API key authentication. The Google project ID and number are included as project metadata; Vertex AI uses the project ID and `GOOGLE_CLOUD_LOCATION` (default `us-central1`) with Application Default Credentials. Runtime configuration is guarded so importing the OCR or extraction modules in a browser does not access Node.js environment globals.
 
+### OCR Provider Configuration
+`OCR_PROVIDER=auto` tries Gemini Vision when credentials are configured, then uses Tesseract.js for raster images and rendered PDF pages. `OCR_PROVIDER=tesseract` forces local Tesseract. Images are normalized, grayscaled, sharpened, and retried with a high-contrast variant when confidence is low; if enhancement fails, OCR falls back to the original image, and a failed OCR variant does not prevent trying the next one. Tesseract downloads worker/language assets on first use unless `TESSERACT_LANG_PATH`, `TESSERACT_WORKER_PATH`, `TESSERACT_CORE_PATH`, and `TESSERACT_CACHE_PATH` point to self-hosted assets. Gemini does not return calibrated OCR confidence, so those extracted fields are conservatively flagged for review.
+
 ### Sensitive Data Protection
 By default, full invoice contents are excluded from standard system logs. Redacted summaries are output instead (`[REDACTED]`). Sensitive content logging can be enabled in isolated debug environments via `ENABLE_SENSITIVE_LOGGING="true"`.
 
@@ -81,11 +84,12 @@ A standalone, deterministic validation service that validates business rules, da
 ### Stable Validation Issue Codes
 | Issue Code | Severity | Description |
 | :--- | :--- | :--- |
-| `MISSING_REQUIRED_FIELD` | `warning` | Mandatory field (`invoice_number`, `invoice_date`, `supplier_name`, `total`) is null and needs human review. |
+| `MISSING_REQUIRED_FIELD` | `warning` | Mandatory field (`invoice_number`, `invoice_date`, `supplier_name`, `total`) is null and needs human review (`needs_review`, not `invalid`). |
+| `MISSING_CRITICAL_AMOUNT` | `error` | Missing `subtotal` or `tax` is an unresolved financial field and blocks approval. |
 | `FIELD_UNCERTAIN` | `warning` | Field extracted with confidence below threshold (`< 0.70`). |
 | `INVALID_DATE_FORMAT` | `error` | Date cannot be parsed into a calendar date (e.g. `2026-02-31`). |
 | `FUTURE_DATE_WARNING` | `warning` | Issue date is more than grace period (7 days) in the future. |
-| `INVALID_NUMERIC_VALUE` | `error` | Field is NaN or non-finite. |
+| `INVALID_NUMERIC_VALUE` | `error` | Numeric input is malformed, out of range, NaN, or non-finite. |
 | `NEGATIVE_AMOUNT_SUSPICIOUS`| `warning` | Amount is negative; flagged for manual credit memo review. |
 | `ZERO_AMOUNT_SUSPICIOUS` | `warning` | Invoice total is $0.00; flagged for zero-balance review. |
 | `ARITHMETIC_SUBTOTAL_MISMATCH` | `error` | Sum of itemized line items does not equal stated subtotal. |
@@ -97,7 +101,8 @@ A standalone, deterministic validation service that validates business rules, da
 
 ### Financial Reconciliation & Decimal Safety
 All calculations use integer cents arithmetic (`toCents`, `fromCents`, `addDecimals`, `subtractDecimals`) to prevent IEEE-754 precision drift.
-- **Subtotal + Tax Reconciliation:** `expectedTotal = subtotal + (tax || 0)`.
+- **Subtotal + Tax Reconciliation:** `expectedTotal = subtotal + tax`; missing subtotal or tax is an error rather than an implicit zero.
+- **Strict amount parsing:** Malformed amount errors survive schema normalization and remain validation errors. Extracted evidence snippets are checked against parsed document text, and unverifiable evidence is marked uncertain for review.
 - **Rounding Tolerance:** Defaults to `$0.05` (5 cents). Deltas $\le \$0.05$ reconcile with a minor rounding notice; deltas $> \$0.05$ trigger `ARITHMETIC_TOTAL_MISMATCH`.
 
 ---
@@ -121,9 +126,9 @@ DocuPulse provides a full-stack REST API with an asynchronous background queue, 
 
 ### Background Queue Abstraction
 * **Status Lifecycle:** `queued` $\rightarrow$ `processing` $\rightarrow$ `completed` / `needs_review` / `invalid` / `failed`. A missing/uncertain extraction is `needs_review`; confirmed contradictions remain `invalid`.
-* **Concurrency Lock:** Active jobs are tracked per document ID. Calling `/retry` on a currently processing document returns `409 Conflict`, preventing duplicate race conditions.
+* **Concurrency Lock:** SQLite atomically assigns an expiring worker lease per document. Calling `/retry` on a currently processing document returns `409 Conflict`, preventing duplicate race conditions.
 * **Separation of Concerns:** Long-running OCR and AI inference execute asynchronously without blocking HTTP upload requests.
-* **Durable retry:** Original bytes are stored atomically under `data/uploads/` (or `DOCUPULSE_UPLOAD_DIR`) and the path, lifecycle state, errors, and warnings are persisted in SQLite. Queued or interrupted processing jobs are recovered on startup; jobs whose source file is missing are explicitly marked failed instead of appearing retryable.
+* **Persistent job state:** Original bytes are stored atomically under `data/uploads/` (or `DOCUPULSE_UPLOAD_DIR`); queue state, attempt counts, and expiring worker leases are persisted in SQLite `processing_jobs`. The poller claims queued work atomically, renews leases during processing, and recovers expired leases after restarts. Source bytes are loaded only for a claimed job or retry, not for the full corpus at startup. Processing remains asynchronous in the API process, not isolated in worker threads.
 * **Repository isolation:** Queue workers use the repository supplied by their controller, keeping in-memory integration tests and alternate databases isolated from the application database.
 
 ### Audit Trail for Manual Corrections
@@ -135,13 +140,14 @@ Manual adjustments via `PATCH /api/v1/documents/{id}/corrections` are recorded w
 * `author`: User or auditor identity
 
 ### Authentication & Deployment Disclosure
-> **Security Notice:** As this is a local assessment demonstration, authentication is currently unconfigured. **This environment is not safe for public deployment without RBAC/OAuth and TLS.**
+The frontend includes an API-token control that stores the configured token in the current browser session and attaches it to protected API requests. Do not place production tokens in `VITE_*` build variables because those values are exposed in the client bundle.
+Document API routes accept `Authorization: Bearer <token>`. Configure `DOCUPULSE_API_TOKENS` as a JSON object mapping high-entropy tokens (minimum 32 characters) to actor IDs. The authenticated actor ID is attached to manual-correction audit entries; caller-supplied actor headers are not trusted. In development only, an empty token registry uses `local-development-user`; in production an empty registry returns `503` and document API requests are not served. This lightweight token mapping is not a substitute for user lifecycle management, role-based authorization, tenant isolation, TLS termination, or token rotation.
 
 ---
 
 ## Module 5: Database and Search
 
-DocuPulse provides persistent relational storage with idempotent schema migrations, decimal-safe integer cents storage, composite indexes for high-throughput queries, multi-criteria filtering, keyword full-text search, and transparent semantic search fallback.
+DocuPulse provides persistent relational storage with idempotent schema migrations, decimal-safe integer cents storage, composite indexes, multi-criteria filtering, keyword search, and persisted vector search.
 
 ### Database Architecture & Dual ORM Strategy
 
@@ -151,6 +157,7 @@ DocuPulse provides persistent relational storage with idempotent schema migratio
 2. **Active TypeScript / SQLite Repository (`src/db/`):**
    - Built on `better-sqlite3` with Write-Ahead Logging (`WAL` mode) and strict foreign key constraints.
    - Fully isolated in-memory test databases (`createInMemoryDatabase()`) for hermetic offline test runs.
+   - Persistent `processing_jobs` state supports restart recovery; SQLite-backed `search_embeddings` stores model-specific vectors keyed by document content hash.
 
 ### Database Schema & Tables
 
@@ -179,10 +186,10 @@ To prevent IEEE-754 precision drift (e.g. `$0.10 + $0.20 = $0.30000000000000004`
    - Filter documents by lifecycle status (`completed`, `needs_review`, `failed`, `queued`).
    - Filter by file extension/MIME type (`pdf`, `xlsx`, `csv`, `image`).
    - Filter by date range (`dateFrom`, `dateTo`) and financial thresholds (`minTotal`, `maxTotal`).
-3. **Semantic Search & Fallback Transparency:**
+3. **Semantic Search & Persistent Indexing:**
    - Implemented via `SemanticSearchService` with cosine similarity (`cosineSimilarity`).
-   - When vector embedding credentials (`gemini-embedding-2-preview`) are unconfigured, the system **strictly avoids mislabeling keyword search as semantic search**.
-   - Instead, it explicitly returns `mode: "fallback_unavailable"` alongside a descriptive `limitationNotice` instructing the client to utilize full-text keyword search.
+   - Vectors are persisted in SQLite with a SHA-256 hash of each indexed document context; changed content regenerates its vector.
+   - Gemini vectors and local hashed-vector representations use separate model keys. The local vectorizer is a deterministic subword-similarity baseline, not a learned semantic embedding model.
 
 ### Data Privacy & Retention Policy
 
@@ -192,9 +199,9 @@ To prevent IEEE-754 precision drift (e.g. `$0.10 + $0.20 = $0.30000000000000004`
 
 ---
 
-## Automated Test Suite (52 Tests)
+## Automated Test Suite
 
-A comprehensive suite of 52 automated tests validates Modules 1, 2, 3, 4, and 5 completely offline without requiring paid API access.
+The automated suite validates Modules 1, 2, 3, 4, and 5 offline without requiring paid API access. OCR-provider behavior is tested with a deterministic worker stub; live OCR and Google credentials require separate deployment-level validation.
 
 ### Running the Tests via CLI
 ```bash
@@ -202,12 +209,14 @@ npm run test
 ```
 
 ### Verified Test Cases
-#### Module 1: Document Processing (13 Tests)
+#### Module 1: Document Processing (16 Tests)
 1. `Digital PDF page-level text extraction`
 2. `Multi-page PDF page indexing and boundaries`
-3. `Scanned PDF detection and OCR routing`
-4. `Image processing (PNG / JPEG) with dimension extraction and OCR`
-5. `Multi-page TIFF directory traversal & detection`
+3. `PDF.js extraction from Flate-compressed streams`
+4. `Scanned PDF detection and OCR routing`
+5. `Tesseract provider transcript and confidence handling`
+6. `Image processing (PNG / JPEG) with dimension extraction and OCR`
+7. `Corrupted TIFF is rejected instead of trusting directory headers`
 6. `Multi-worksheet XLSX boundary and coordinate preservation`
 7. `Legacy XLS (BIFF8) processing and compatibility warning`
 8. `CSV auto-delimiter detection and RFC-4180 quoted fields`
@@ -217,19 +226,25 @@ npm run test
 12. `Path traversal and malicious filename sanitization`
 13. `Multi-file batch fault-isolation (corrupt file does not stop batch)`
 
-#### Module 2: AI Information Extraction (8 Tests)
+#### Module 2: AI Information Extraction (13 Tests)
 1. `Complete invoice extraction (mock/rule-based mode)`
 2. `Missing fields return null without hallucination`
-3. `Tabular line items extraction with evidence & coordinates`
-4. `Schema validation catches malformed JSON & cleans amounts`
-5. `Timeout handling aborts safely on slow execution`
-6. `Provider failure returns structured result with warning`
-7. `ExtractionFactory creates MockRuleBasedAdapter by default/config`
-8. `End-to-end pipeline: Task 1 document parsing to validated JSON`
+3. `Label-aware extraction rejects adjacent labels and preserves source evidence`
+4. `Locale amounts and ambiguous currency are handled safely`
+5. `Spreadsheet key/value rows are not mistaken for table headers`
+6. `OCR diagnostic metadata is not extracted as invoice content`
+7. `Tabular line items extraction with evidence & coordinates`
+8. `Schema validation catches malformed JSON & cleans amounts`
+9. `Evidence snippets must occur in the source and support extracted values`
+10. `Timeout handling aborts safely on slow execution`
+11. `Provider failure returns structured result with warning`
+12. `ExtractionFactory creates MockRuleBasedAdapter by default/config`
+13. `End-to-end pipeline: Task 1 document parsing to validated JSON`
 
-#### Module 3: Data Validation & Reconciliation (11 Tests)
+#### Module 3: Data Validation & Reconciliation (12 Tests)
 1. `Clean, valid invoice passes with "valid" status and zero errors`
-2. `Missing required fields (invoice_number, date, supplier, total) flagged as invalid`
+2. `Missing required fields (invoice_number, date, supplier, total) require review without being marked invalid`
+3. `Missing critical subtotal or tax amounts are invalid`
 3. `Duplicate invoice candidate detected via normalized supplier and number`
 4. `Configurable rounding tolerance handles minor cent variance`
 5. `Line items sum versus subtotal arithmetic reconciliation`
@@ -238,8 +253,9 @@ npm run test
 8. `Invalid calendar date (e.g. Feb 31) caught as INVALID_DATE_FORMAT`
 9. `Decimal safety verified with fractional cents operations (0.1 + 0.2)`
 
-#### Module 4: Backend REST API & Job Queue (11 Tests)
-1. `Upload endpoint (POST /api/v1/documents) accepts multiple files and queues jobs`
+#### Module 4: Backend REST API & Job Queue (14 Tests)
+1. `Bearer token validation resolves actor identity and rejects invalid credentials`
+2. `Upload endpoint (POST /api/v1/documents) accepts multiple files and queues jobs`
 2. `Metadata & status endpoint (GET /api/v1/documents/{id}) returns job state`
 3. `Result endpoint (GET /api/v1/documents/{id}/result) provides extraction and validation`
 4. `List endpoint (GET /api/v1/documents) supports pagination, filtering, and search`
@@ -249,7 +265,11 @@ npm run test
 8. `Health endpoint (GET /health) returns queue metrics, database state, and assessment auth warning`
 9. `Cross-verification endpoint reconciles extracted documents`
 10. `Semantic search endpoint returns ranked vector matches`
-11. `Queue workers write through their injected repository and recover durable source files`
+13. `Queue workers write through their injected repository and recover durable source files`
+14. `Confirmed arithmetic contradictions keep the invalid status through queue and API`
+
+#### Module 5: Database & Search (10 Tests)
+- Includes lease ownership, renewal, expired-worker recovery, and stale-worker commit rejection.
 
 #### Module 5: Database and Search (9 Tests)
 1. `Schema initialization and repeatable migrations execute idempotently`
@@ -305,7 +325,7 @@ These metrics reflect **actual measured numbers** generated by `npm run evaluate
 | **Overall Field Extraction Accuracy** | **87.7%** | 71 of 81 field evaluations exactly matched ground truth |
 | **OCR Ground-Truth Field Accuracy** | **0% (0/9)** | OCR provider is not configured; no image invoice values were inferred |
 | **Mean Processing Latency** | **85 ms** | Measured wall-clock time per document (min: 1 ms, max: 249 ms, p95: 249 ms) |
-| **Automated Unit & Integration Tests** | **57 / 57 PASS** | Modules 1–5; offline test suite |
+| **Automated Unit & Integration Tests** | **61 / 61 PASS** | Modules 1–5; offline test suite |
 
 ### Field-Level Extraction Accuracy
 
@@ -338,7 +358,7 @@ The project includes artifacts for the listed assessment deliverables. Refer to 
 | **3** | Architecture Diagram & Database Schema | [`docs/architecture_and_schema.md`](docs/architecture_and_schema.md) | **Complete** |
 | **4** | Working Backend & Frontend | Express (`server.ts`, port 3000) & React 19 SPA (`src/App.tsx`) | **Complete** |
 | **5** | Multi-Format Document Processing | `src/services/document/` (PDF, Image, TIFF, XLSX, XLS, CSV) | **Complete** |
-| **6** | Automated Tests (52 Tests) | `scripts/run-tests.ts`, `src/services/*/tests.ts` | **Complete (52/52 PASS)** |
+| **6** | Automated Tests | `scripts/run-tests.ts`, `src/services/*/tests.ts` | **Run `npm test` for current result** |
 | **7** | Evaluation Report & Benchmark Metrics | [`docs/evaluation_report.md`](docs/evaluation_report.md) & [`docs/evaluation_metrics.json`](docs/evaluation_metrics.json) | **Complete** |
 | **8** | Walkthrough Guide & Recording Script | [`docs/walkthrough_guide.md`](docs/walkthrough_guide.md) | **Complete** |
 | **9** | AI Prompts & Disclosure of AI Assistance | `src/services/extraction/prompts.ts` & Section below | **Complete** |
@@ -360,7 +380,7 @@ In adherence to academic integrity and technical assessment disclosure requireme
 # 1. Run the full-stack development server (Express API on port 3000 + React SPA)
 npm run dev
 
-# 2. Run the 57-test automated regression suite
+# 2. Run the automated regression suite
 npm run test
 
 # 3. Run the empirical benchmark evaluation on the labeled ground-truth dataset

@@ -14,11 +14,12 @@ import { DEMO_FIXTURES, DemoFixture } from '../sampleFixtures.ts';
 
 interface UploadDropzoneProps {
   isUploading: boolean;
-  onUpload: (files: Array<{ name: string; size: number; type: string; data: string }>) => Promise<void>;
+  onUpload: (files: File[]) => Promise<void>;
 }
 
 const ALLOWED_EXTENSIONS = ['.pdf', '.jpg', '.jpeg', '.png', '.tif', '.tiff', '.xlsx', '.xls', '.csv'];
 const MAX_FILE_SIZE_BYTES = 25 * 1024 * 1024; // 25 MB
+const MAX_UPLOAD_SIZE_BYTES = 35 * 1024 * 1024;
 const FORMAT_BADGES = [
   { label: 'PDF', Icon: FileText },
   { label: 'Excel', Icon: FileSpreadsheet },
@@ -36,15 +37,6 @@ export const UploadDropzone: React.FC<UploadDropzoneProps> = ({
   const [loadingFixtureId, setLoadingFixtureId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const readFileAsDataUrl = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = () => reject(new Error(`Failed to read file ${file.name}`));
-      reader.readAsDataURL(file);
-    });
-  };
-
   const processAndUploadFiles = async (fileList: FileList | File[]) => {
     setUploadError(null);
     const filesArray = Array.from(fileList);
@@ -52,7 +44,7 @@ export const UploadDropzone: React.FC<UploadDropzoneProps> = ({
     if (filesArray.length === 0) return;
 
     // Validate size and extensions
-    const validPayloads: Array<{ name: string; size: number; type: string; data: string }> = [];
+    let totalSize = 0;
 
     for (const file of filesArray) {
       if (file.size > MAX_FILE_SIZE_BYTES) {
@@ -67,22 +59,15 @@ export const UploadDropzone: React.FC<UploadDropzoneProps> = ({
         return;
       }
 
-      try {
-        const dataUrl = await readFileAsDataUrl(file);
-        validPayloads.push({
-          name: file.name,
-          size: file.size,
-          type: file.type || 'application/octet-stream',
-          data: dataUrl,
-        });
-      } catch (err: any) {
-        setUploadError(`Error reading file "${file.name}": ${err.message}`);
+      totalSize += file.size;
+      if (totalSize > MAX_UPLOAD_SIZE_BYTES) {
+        setUploadError('Combined files exceed the 35 MB upload request limit.');
         return;
       }
     }
 
     try {
-      await onUpload(validPayloads);
+      await onUpload(filesArray);
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }

@@ -1,6 +1,6 @@
 {
   "evaluation_metadata": {
-    "timestamp": "2026-10-28T22:54:13.465Z",
+    "timestamp": "2026-10-31T11:19:26.786Z",
     "sample_size": 10,
     "dataset_path": "evaluation/dataset",
     "ground_truth_path": "evaluation/ground_truth.json",
@@ -17,8 +17,10 @@
   "system_level_metrics": {
     "document_success_rate_percentage": 100,
     "document_failure_rate_percentage": 0,
-    "validation_concordance_rate_percentage": 90,
-    "overall_field_accuracy_percentage": 87.7,
+    "validation_concordance_rate_percentage": 100,
+    "validation_concordance_evaluated_documents": 9,
+    "validation_concordance_inconclusive_documents": 1,
+    "overall_field_accuracy_percentage": 88.9,
     "ocr_ground_truth_field_accuracy": {
       "accuracy_percentage": 0,
       "exact_matches": 0,
@@ -29,11 +31,11 @@
   },
   "latency_metrics_ms": {
     "min": 0,
-    "max": 46,
-    "mean": 14,
-    "median": 7,
-    "p95": 46,
-    "total_batch_duration_ms": 141
+    "max": 1405,
+    "mean": 189,
+    "median": 13,
+    "p95": 1405,
+    "total_batch_duration_ms": 1887
   },
   "field_level_accuracy": {
     "invoice_number": {
@@ -73,8 +75,8 @@
     },
     "currency": {
       "total_evaluated": 9,
-      "exact_matches": 7,
-      "accuracy_percentage": 77.8
+      "exact_matches": 8,
+      "accuracy_percentage": 88.9
     },
     "line_items_count": {
       "total_evaluated": 9,
@@ -91,8 +93,9 @@
       "pipeline_status": "completed",
       "expected_validation_status": "valid",
       "actual_validation_status": "valid",
+      "ocr_text_available": null,
       "status_concordance": true,
-      "processing_time_ms": 24,
+      "processing_time_ms": 1405,
       "field_evaluations": {
         "invoice_number": {
           "matched": true,
@@ -152,8 +155,9 @@
       "pipeline_status": "completed",
       "expected_validation_status": "valid",
       "actual_validation_status": "valid",
+      "ocr_text_available": null,
       "status_concordance": true,
-      "processing_time_ms": 10,
+      "processing_time_ms": 16,
       "field_evaluations": {
         "invoice_number": {
           "matched": true,
@@ -213,8 +217,9 @@
       "pipeline_status": "warning",
       "expected_validation_status": "valid",
       "actual_validation_status": "valid",
+      "ocr_text_available": null,
       "status_concordance": true,
-      "processing_time_ms": 46,
+      "processing_time_ms": 6,
       "field_evaluations": {
         "invoice_number": {
           "matched": true,
@@ -277,8 +282,9 @@
       "pipeline_status": "warning",
       "expected_validation_status": "valid",
       "actual_validation_status": "valid",
+      "ocr_text_available": null,
       "status_concordance": true,
-      "processing_time_ms": 43,
+      "processing_time_ms": 25,
       "field_evaluations": {
         "invoice_number": {
           "matched": true,
@@ -339,9 +345,10 @@
       "is_corrupt": false,
       "pipeline_status": "warning",
       "expected_validation_status": "valid",
-      "actual_validation_status": "needs_review",
-      "status_concordance": false,
-      "processing_time_ms": 4,
+      "actual_validation_status": "invalid",
+      "ocr_text_available": false,
+      "status_concordance": null,
+      "processing_time_ms": 408,
       "field_evaluations": {
         "invoice_number": {
           "matched": false,
@@ -391,14 +398,18 @@
       },
       "field_accuracy_percentage": 0,
       "warnings": [
-        "OCR is unavailable for this image payload; no invoice values were inferred. Configure Gemini Vision to enable image OCR.",
+        "Page 1: OCR provider is disabled in mock mode; no image text was inferred.",
         "MISSING_REQUIRED_FIELD: Required field \"invoice_number\" is missing or unparseable.",
         "MISSING_REQUIRED_FIELD: Required field \"invoice_date\" is missing or unparseable.",
         "MISSING_REQUIRED_FIELD: Required field \"supplier_name\" is missing or unparseable.",
+        "MISSING_REQUIRED_FIELD: Required field \"customer_name\" is missing or unparseable.",
         "MISSING_REQUIRED_FIELD: Required field \"total\" is missing or unparseable.",
         "MISSING_CURRENCY: Invoice currency code is missing; defaulting or cross-currency risks."
       ],
-      "errors": []
+      "errors": [
+        "MISSING_CRITICAL_AMOUNT: Critical financial field \"subtotal\" is missing or could not be parsed.",
+        "MISSING_CRITICAL_AMOUNT: Critical financial field \"tax\" is missing or could not be parsed."
+      ]
     },
     {
       "id": "DOC-EVAL-006",
@@ -408,6 +419,7 @@
       "pipeline_status": "warning",
       "expected_validation_status": "valid",
       "actual_validation_status": "valid",
+      "ocr_text_available": null,
       "status_concordance": true,
       "processing_time_ms": 2,
       "field_evaluations": {
@@ -470,10 +482,11 @@
       "file_type": "pdf",
       "is_corrupt": false,
       "pipeline_status": "completed",
-      "expected_validation_status": "needs_review",
-      "actual_validation_status": "needs_review",
+      "expected_validation_status": "invalid",
+      "actual_validation_status": "invalid",
+      "ocr_text_available": null,
       "status_concordance": true,
-      "processing_time_ms": 4,
+      "processing_time_ms": 10,
       "field_evaluations": {
         "invoice_number": {
           "matched": true,
@@ -511,8 +524,8 @@
           "actual": 165
         },
         "currency": {
-          "matched": false,
-          "expected": "USD",
+          "matched": true,
+          "expected": null,
           "actual": null
         },
         "line_items_count": {
@@ -521,11 +534,14 @@
           "actual": 1
         }
       },
-      "field_accuracy_percentage": 88.9,
+      "field_accuracy_percentage": 100,
       "warnings": [
+        "MISSING_REQUIRED_FIELD: Required field \"customer_name\" is missing or unparseable.",
         "MISSING_CURRENCY: Invoice currency code is missing; defaulting or cross-currency risks."
       ],
-      "errors": []
+      "errors": [
+        "MISSING_CRITICAL_AMOUNT: Critical financial field \"subtotal\" is missing or could not be parsed."
+      ]
     },
     {
       "id": "DOC-EVAL-008",
@@ -535,8 +551,9 @@
       "pipeline_status": "warning",
       "expected_validation_status": "invalid",
       "actual_validation_status": "invalid",
+      "ocr_text_available": null,
       "status_concordance": true,
-      "processing_time_ms": 7,
+      "processing_time_ms": 13,
       "field_evaluations": {
         "invoice_number": {
           "matched": true,
@@ -600,8 +617,9 @@
       "pipeline_status": "warning",
       "expected_validation_status": "needs_review",
       "actual_validation_status": "needs_review",
+      "ocr_text_available": null,
       "status_concordance": true,
-      "processing_time_ms": 1,
+      "processing_time_ms": 2,
       "field_evaluations": {
         "invoice_number": {
           "matched": true,
@@ -665,6 +683,7 @@
       "pipeline_status": "failed",
       "expected_validation_status": "failed",
       "actual_validation_status": "failed",
+      "ocr_text_available": null,
       "status_concordance": true,
       "processing_time_ms": 0,
       "field_evaluations": {

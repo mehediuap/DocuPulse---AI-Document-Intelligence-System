@@ -11,8 +11,10 @@
  */
 
 import type { GoogleGenAI } from '@google/genai';
+import { createHash } from 'node:crypto';
 import { createGoogleGenAIClient } from '../extraction/googleGenAIConfig.ts';
 import { DocumentRecord } from '../api/types.ts';
+import { DocumentRepository, documentRepository } from '../../db/repository.ts';
 
 export interface SemanticSearchResult {
   documentId: string;
@@ -34,8 +36,10 @@ export class SemanticSearchService {
   private ai: GoogleGenAI | null = null;
   private vectorCache = new Map<string, number[]>();
   private embeddingModel = 'text-embedding-004';
+  private repository: DocumentRepository;
 
-  constructor() {
+  constructor(repository: DocumentRepository = documentRepository) {
+    this.repository = repository;
     this.ai = createGoogleGenAIClient();
   }
 
@@ -92,20 +96,20 @@ export class SemanticSearchService {
       let docVector: number[] | null = null;
 
       if (mode === 'gemini_vector_embedding') {
-        docVector = this.vectorCache.get(`gemini_${doc.id}`) || null;
+        docVector = this.getCachedVector(doc, textToEmbed, `gemini:${this.embeddingModel}`);
         if (!docVector) {
           docVector = await this.getGeminiEmbedding(textToEmbed.substring(0, 1000));
           if (docVector) {
-            this.vectorCache.set(`gemini_${doc.id}`, docVector);
+            this.saveCachedVector(doc, textToEmbed, `gemini:${this.embeddingModel}`, docVector);
           }
         }
       }
 
       if (!docVector) {
-        docVector = this.vectorCache.get(`local_${doc.id}`) || null;
+        docVector = this.getCachedVector(doc, textToEmbed, 'local-hash-v1');
         if (!docVector) {
           docVector = this.computeLocalDenseVector(textToEmbed);
-          this.vectorCache.set(`local_${doc.id}`, docVector);
+          this.saveCachedVector(doc, textToEmbed, 'local-hash-v1', docVector);
         }
       }
 
@@ -135,6 +139,25 @@ export class SemanticSearchService {
         ? `Ranked via Google GenAI ${this.embeddingModel} vector embeddings.`
         : 'Ranked via dense subword vector space model with cosine similarity.',
     };
+  }
+
+  private getCachedVector(doc: DocumentRecord, content: string, model: string): number[] | null {
+    const contentHash = createHash('sha256').update(content).digest('hex');
+    const cacheKey = `${model}:${doc.id}:${contentHash}`;
+    const cached = this.vectorCache.get(cacheKey);
+    if (cached) return cached;
+
+    const persisted = this.repository.getSearchVector(doc.id, model, contentHash);
+    if (!persisted) return null;
+    this.vectorCache.set(cacheKey, persisted);
+    return persisted;
+  }
+
+  private saveCachedVector(doc: DocumentRecord, content: string, model: string, vector: number[]): void {
+    const contentHash = createHash('sha256').update(content).digest('hex');
+    const cacheKey = `${model}:${doc.id}:${contentHash}`;
+    this.repository.saveSearchVector(doc.id, model, contentHash, vector);
+    this.vectorCache.set(cacheKey, vector);
   }
 
   private buildDocumentSearchContext(doc: DocumentRecord): string {
@@ -240,5 +263,3 @@ export function cosineSimilarity(vecA: number[], vecB: number[]): number {
   if (denominator === 0) return 0;
   return dotProduct / denominator;
 }
-
-export const semanticSearchService = new SemanticSearchService();

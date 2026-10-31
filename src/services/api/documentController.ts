@@ -20,7 +20,8 @@ import { BackgroundJobQueue } from '../queue/jobQueue.ts';
 import { sanitizeFilename, validateFileBounds, detectFileType } from '../document/security.ts';
 import { ValidationService } from '../validation/validationService.ts';
 import { CrossVerificationService, CrossVerificationResult } from '../validation/crossVerification.ts';
-import { semanticSearchService, SemanticSearchResponse } from '../search/semanticSearch.ts';
+import { SemanticSearchService, SemanticSearchResponse } from '../search/semanticSearch.ts';
+import { getApiAuthenticationWarning } from './authentication.ts';
 import { documentRepository, DocumentRepository } from '../../db/repository.ts';
 import {
   DocumentSourceStorage,
@@ -29,46 +30,35 @@ import {
 } from '../document/sourceStorage.ts';
 import { InvoiceExtractionResult } from '../extraction/schemas.ts';
 import { roundToTwoDecimals } from '../validation/decimalUtils.ts';
+import { closeSync, openSync, readSync } from 'node:fs';
+
+export interface DiskUploadFile {
+  originalName: string;
+  size: number;
+  type?: string;
+  path: string;
+}
+
+interface ValidatedUpload {
+  name: string;
+  size: number;
+  type?: string;
+  sanitizedName: string;
+  fileType: string;
+  save: (documentId: string) => string;
+}
 
 export class DocumentController {
-  private documentStore = new Map<string, DocumentRecord>();
   private jobQueue: BackgroundJobQueue;
   private repository: DocumentRepository;
+  private semanticSearch: SemanticSearchService;
   private sourceStorage: DocumentSourceStorage;
 
   constructor(customRepo?: DocumentRepository, customStorage?: DocumentSourceStorage) {
     this.repository = customRepo || documentRepository;
+    this.semanticSearch = new SemanticSearchService(this.repository);
     this.sourceStorage = customStorage || (customRepo ? new MemoryDocumentSourceStorage() : documentSourceStorage);
-    this.jobQueue = new BackgroundJobQueue(this.documentStore, this.repository);
-    this.hydrateFromDb();
-  }
-
-  /**
-   * Hydrates in-memory cache with persisted SQLite documents on startup.
-   */
-  private hydrateFromDb(): void {
-    const interruptedDocuments: DocumentRecord[] = [];
-    for (const doc of this.repository.getAllDocuments()) {
-      doc.rawBuffer = doc.storagePath ? this.sourceStorage.read(doc.storagePath) : undefined;
-      this.documentStore.set(doc.id, doc);
-
-      if (doc.status === 'queued' || doc.status === 'processing') {
-        if (!doc.rawBuffer) {
-          doc.status = 'failed';
-          doc.errors.push('Original source file is unavailable; interrupted job cannot be resumed.');
-          doc.updatedAt = new Date().toISOString();
-          this.repository.saveJobState(doc, doc.retryCount + 1, 'failed', 0, doc.errors[doc.errors.length - 1]);
-          continue;
-        }
-
-        if (doc.status === 'processing') doc.retryCount += 1;
-        doc.status = 'queued';
-        doc.updatedAt = new Date().toISOString();
-        this.repository.saveJobState(doc, doc.retryCount + 1, 'queued');
-        interruptedDocuments.push(doc);
-      }
-    }
-    for (const doc of interruptedDocuments) this.jobQueue.enqueue(doc.id);
+    this.jobQueue = new BackgroundJobQueue(this.repository, this.sourceStorage);
   }
 
   public getRepository(): DocumentRepository {
@@ -77,10 +67,6 @@ export class DocumentController {
 
   public getQueue(): BackgroundJobQueue {
     return this.jobQueue;
-  }
-
-  public getStore(): Map<string, DocumentRecord> {
-    return this.documentStore;
   }
 
   /**
@@ -101,42 +87,87 @@ export class DocumentController {
       if (file.size !== file.buffer.byteLength) {
         throw new HttpError(400, 'FILE_SIZE_MISMATCH', 'Declared file size does not match uploaded bytes.', 'size');
       }
-      const sanitizedName = sanitizeFilename(file.name);
-      const bounds = validateFileBounds(file.buffer.byteLength);
-
-      if (!bounds.valid) {
-        throw new HttpError(400, 'INVALID_FILE_BOUNDS', bounds.error || 'File bounds invalid.', 'size');
-      }
-
-      const fileType = detectFileType(sanitizedName, file.buffer.slice(0, 16));
-      if (fileType === 'unsupported') {
-        throw new HttpError(
-          415,
-          'UNSUPPORTED_MEDIA_TYPE',
-          `Format not supported for file "${file.name}". Supported: PDF, JPG, PNG, TIFF, XLSX, XLS, CSV.`,
-          'file'
-        );
-      }
-
-      return { file, sanitizedName, fileType };
+      return this.validateUpload(
+        file.name,
+        file.size,
+        file.type,
+        file.buffer.slice(0, 16),
+        documentId => this.sourceStorage.save(documentId, new Uint8Array(file.buffer))
+      );
     });
 
+    return this.enqueueValidatedUploads(validatedFiles);
+  }
+
+  public async uploadDocumentsFromDisk(files: DiskUploadFile[]): Promise<DocumentUploadResponse> {
+    if (!files || files.length === 0) {
+      throw new HttpError(400, 'NO_FILES_PROVIDED', 'At least one file must be uploaded.');
+    }
+
+    const validatedFiles = files.map(file => {
+      let descriptor: number | undefined;
+      const header = Buffer.alloc(16);
+      let headerLength = 0;
+      try {
+        descriptor = openSync(file.path, 'r');
+        headerLength = readSync(descriptor, header, 0, header.length, 0);
+      } finally {
+        if (descriptor !== undefined) closeSync(descriptor);
+      }
+
+      return this.validateUpload(
+        file.originalName,
+        file.size,
+        file.type,
+        header.subarray(0, headerLength),
+        documentId => this.sourceStorage.saveFromFile(documentId, file.path)
+      );
+    });
+
+    return this.enqueueValidatedUploads(validatedFiles);
+  }
+
+  private validateUpload(
+    name: string,
+    size: number,
+    type: string | undefined,
+    headerBytes: Uint8Array,
+    save: (documentId: string) => string
+  ): ValidatedUpload {
+    const sanitizedName = sanitizeFilename(name);
+    const bounds = validateFileBounds(size);
+    if (!bounds.valid) {
+      throw new HttpError(400, 'INVALID_FILE_BOUNDS', bounds.error || 'File bounds invalid.', 'size');
+    }
+
+    const fileType = detectFileType(sanitizedName, headerBytes);
+    if (fileType === 'unsupported') {
+      throw new HttpError(
+        415,
+        'UNSUPPORTED_MEDIA_TYPE',
+        `Format not supported for file "${name}". Supported: PDF, JPG, PNG, TIFF, XLSX, XLS, CSV.`,
+        'file'
+      );
+    }
+
+    return { name, size, type, sanitizedName, fileType, save };
+  }
+
+  private enqueueValidatedUploads(validatedFiles: ValidatedUpload[]): DocumentUploadResponse {
     const items: DocumentUploadResponse['documents'] = [];
 
-    for (const { file, sanitizedName, fileType } of validatedFiles) {
+    for (const { name, size, type, sanitizedName, fileType, save } of validatedFiles) {
       const docId = `doc_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
       const now = new Date().toISOString();
-      const rawBuffer = new Uint8Array(file.buffer);
-      const storagePath = this.sourceStorage.save(docId, rawBuffer);
+      const storagePath = save(docId);
 
       const record: DocumentRecord = {
         id: docId,
-        originalFilename: file.name,
+        originalFilename: name,
         sanitizedFilename: sanitizedName,
         fileType,
-        mimeType: file.type || 'application/octet-stream',
-        fileSizeBytes: file.size,
-        rawBuffer,
+        mimeType: type || 'application/octet-stream',
+        fileSizeBytes: size,
         storagePath,
         status: 'queued',
         createdAt: now,
@@ -153,7 +184,6 @@ export class DocumentController {
         this.sourceStorage.remove(storagePath);
         throw error;
       }
-      this.documentStore.set(docId, record);
       this.jobQueue.enqueue(docId);
 
       items.push({
@@ -175,7 +205,7 @@ export class DocumentController {
    * GET /api/v1/documents/:document_id
    */
   public getDocumentMetadata(documentId: string): DocumentMetadataResponse {
-    const doc = this.documentStore.get(documentId);
+    const doc = this.repository.getDocument(documentId);
     if (!doc) {
       throw new HttpError(404, 'DOCUMENT_NOT_FOUND', `Document with ID "${documentId}" was not found.`);
     }
@@ -199,7 +229,7 @@ export class DocumentController {
    * GET /api/v1/documents/:document_id/result
    */
   public getDocumentResult(documentId: string): DocumentResultResponse {
-    const doc = this.documentStore.get(documentId);
+    const doc = this.repository.getDocument(documentId);
     if (!doc) {
       throw new HttpError(404, 'DOCUMENT_NOT_FOUND', `Document with ID "${documentId}" was not found.`);
     }
@@ -261,9 +291,10 @@ export class DocumentController {
    */
   public applyCorrections(
     documentId: string,
-    req: CorrectionRequest
+    req: CorrectionRequest,
+    actorId = 'local-development-user'
   ): CorrectionResponse {
-    const doc = this.documentStore.get(documentId);
+    const doc = this.repository.getDocument(documentId);
     if (!doc) {
       throw new HttpError(404, 'DOCUMENT_NOT_FOUND', `Document with ID "${documentId}" was not found.`);
     }
@@ -354,7 +385,7 @@ export class DocumentController {
         newValue: correctedValue,
         updatedAt: now,
         reason: req.reason || 'Manual auditor correction',
-        author: 'auditor',
+        author: actorId,
       };
       auditEntries.push(auditEntry);
       updatedFields.push(field);
@@ -363,9 +394,7 @@ export class DocumentController {
     let validation = doc.validation;
     let status = doc.status;
     if (req.revalidate !== false) {
-      const existingInvoices = Array.from(this.documentStore.values())
-        .filter(d => d.id !== doc.id && d.extraction)
-        .map(d => d.extraction!);
+      const existingInvoices = this.repository.getInvoiceExtractionsExcept(doc.id);
 
       validation = ValidationService.validateInvoice(extraction, existingInvoices);
       status = validation.status === 'valid' ? 'completed' : validation.status;
@@ -380,7 +409,6 @@ export class DocumentController {
       auditTrail: [...doc.auditTrail, ...auditEntries],
     };
     this.repository.saveCorrection(correctedDocument, auditEntries);
-    this.documentStore.set(doc.id, correctedDocument);
 
     return {
       success: true,
@@ -396,14 +424,14 @@ export class DocumentController {
    * POST /api/v1/documents/:document_id/retry
    */
   public retryJob(documentId: string): RetryResponse {
-    const doc = this.documentStore.get(documentId);
+    const doc = this.repository.getDocument(documentId);
     if (!doc) {
       throw new HttpError(404, 'DOCUMENT_NOT_FOUND', `Document with ID "${documentId}" was not found.`);
     }
 
     const result = this.jobQueue.retry(documentId);
     if (!result.success) {
-      if (result.status === 'failed' && !doc.rawBuffer) {
+      if (result.status === 'failed' && result.message.includes('source file is unavailable')) {
         throw new HttpError(409, 'SOURCE_FILE_UNAVAILABLE', result.message);
       }
       throw new HttpError(409, 'CONCURRENT_RETRY_CONFLICT', result.message);
@@ -422,11 +450,11 @@ export class DocumentController {
    * Reconciles two documents (e.g. PDF Invoice vs Excel PO / Delivery Log).
    */
   public crossVerifyDocuments(sourceId: string, targetId: string): CrossVerificationResult {
-    const docA = this.documentStore.get(sourceId);
+    const docA = this.repository.getDocument(sourceId);
     if (!docA) {
       throw new HttpError(404, 'DOCUMENT_NOT_FOUND', `Source document with ID "${sourceId}" was not found.`, 'sourceId');
     }
-    const docB = this.documentStore.get(targetId);
+    const docB = this.repository.getDocument(targetId);
     if (!docB) {
       throw new HttpError(404, 'DOCUMENT_NOT_FOUND', `Target document with ID "${targetId}" was not found.`, 'targetId');
     }
@@ -456,8 +484,8 @@ export class DocumentController {
       throw new HttpError(400, 'INVALID_MIN_SIMILARITY', 'min_similarity must be a number between 0 and 1.', 'min_similarity');
     }
 
-    const allDocs = Array.from(this.documentStore.values());
-    return await semanticSearchService.search(query, allDocs, minSimilarity);
+    const allDocs = this.repository.getAllDocuments();
+    return await this.semanticSearch.search(query, allDocs, minSimilarity);
   }
 
   /**
@@ -476,10 +504,10 @@ export class DocumentController {
       status: databaseStatus === 'connected' ? 'ok' : 'degraded',
       version: '1.0.0',
       service: 'DocuPulse Backend REST API',
-      environment: 'local_assessment_demo',
+      environment: process.env.NODE_ENV === 'production' ? 'production' : 'development',
       databaseStatus,
       queueStatus,
-      authWarning: 'Local assessment demo - authentication disabled. Not suitable for public deployment without RBAC/OAuth.',
+      authWarning: getApiAuthenticationWarning(),
     };
   }
 }

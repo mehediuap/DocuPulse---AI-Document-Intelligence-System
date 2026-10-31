@@ -8,9 +8,13 @@ import { createDigitalPdfBytes } from '../document/tests.ts';
 import { DatabaseClient } from '../../db/database.ts';
 import { DocumentRepository, documentRepository } from '../../db/repository.ts';
 import { FileDocumentSourceStorage } from '../document/sourceStorage.ts';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { parseApiTokenRegistry, resolveApiActor } from './authentication.ts';
+import { createDocumentUploadHandler, safeErrorHandler, toPublicApiError } from './routes.ts';
+import { mkdtempSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import http from 'node:http';
+import express from 'express';
 
 export interface TestRunResult {
   name: string;
@@ -54,6 +58,88 @@ export async function runBackendApiTests(): Promise<{
   const testUploadDirectory = mkdtempSync(path.join(tmpdir(), 'docupulse-api-test-'));
   const sourceStorage = new FileDocumentSourceStorage(testUploadDirectory);
   const controller = new DocumentController(repo, sourceStorage);
+
+  await test('API bearer tokens resolve stable actor identities and reject invalid credentials', async () => {
+    const token = 'test-token-value-with-at-least-thirty-two-characters';
+    const registry = parseApiTokenRegistry(JSON.stringify({ [token]: 'finance-reviewer-17' }));
+    if (resolveApiActor(`Bearer ${token}`, registry) !== 'finance-reviewer-17') {
+      throw new Error('Configured bearer token did not resolve to its actor.');
+    }
+    if (resolveApiActor('Bearer invalid-token', registry) !== null) {
+      throw new Error('Invalid bearer token was accepted.');
+    }
+    if (resolveApiActor(undefined, registry) !== null) {
+      throw new Error('Missing bearer token was accepted.');
+    }
+  });
+
+  await test('Unexpected API failures expose only a generic client response', async () => {
+    const publicError = toPublicApiError(new Error('database path C:\\private\\secret.db failed'));
+    if (publicError.statusCode !== 500 || publicError.code !== 'INTERNAL_SERVER_ERROR') {
+      throw new Error('Unexpected error did not map to a generic server failure.');
+    }
+    if (publicError.message.includes('private') || publicError.message.includes('secret.db')) {
+      throw new Error('Internal error details were exposed in the public API message.');
+    }
+    const knownError = toPublicApiError(new HttpError(422, 'BAD_INPUT', 'Input was rejected.', 'field'));
+    if (knownError.statusCode !== 422 || knownError.field !== 'field') {
+      throw new Error('Known client errors lost their sanitized status or field context.');
+    }
+  });
+
+  await test('Multipart upload streams files to disk and removes staging files', async () => {
+    const uploadDirectory = mkdtempSync(path.join(tmpdir(), 'docupulse-multipart-test-'));
+    const previousUploadDirectory = process.env.DOCUPULSE_UPLOAD_DIR;
+    process.env.DOCUPULSE_UPLOAD_DIR = uploadDirectory;
+    const uploadDatabase = DatabaseClient.createInMemory();
+    const uploadRepository = new DocumentRepository(uploadDatabase);
+    const uploadStorage = new FileDocumentSourceStorage(uploadDirectory);
+    const uploadController = new DocumentController(uploadRepository, uploadStorage);
+    const app = express();
+    app.post('/upload', ...createDocumentUploadHandler(uploadController));
+    app.use(safeErrorHandler);
+    const server = http.createServer(app);
+
+    try {
+      await new Promise<void>((resolve, reject) => {
+        server.once('error', reject);
+        server.listen(0, '127.0.0.1', resolve);
+      });
+      const address = server.address();
+      if (!address || typeof address === 'string') throw new Error('Test upload server did not bind to a TCP port.');
+
+      const pdf = createDigitalPdfBytes('INV-MULTIPART-001');
+      const form = new FormData();
+      form.append(
+        'files',
+        new Blob([pdf.slice().buffer as ArrayBuffer], { type: 'application/pdf' }),
+        'multipart-invoice.pdf'
+      );
+      const response = await fetch(`http://127.0.0.1:${address.port}/upload`, {
+        method: 'POST',
+        body: form,
+      });
+      if (response.status !== 202) throw new Error(`Expected multipart upload 202, received ${response.status}.`);
+      const payload = await response.json() as { totalQueued: number; documents: Array<{ documentId: string }> };
+      if (payload.totalQueued !== 1 || !payload.documents[0]?.documentId) {
+        throw new Error('Multipart upload did not return one queued document.');
+      }
+
+      const document = uploadRepository.getDocument(payload.documents[0].documentId);
+      if (!document?.storagePath || !uploadStorage.read(document.storagePath)) {
+        throw new Error('Multipart upload source was not persisted to disk.');
+      }
+      const incomingDirectory = path.join(uploadDirectory, '.incoming');
+      if (readdirSync(incomingDirectory).length !== 0) {
+        throw new Error('Multipart upload left a temporary staging file behind.');
+      }
+    } finally {
+      await new Promise<void>(resolve => server.close(() => resolve()));
+      if (previousUploadDirectory === undefined) delete process.env.DOCUPULSE_UPLOAD_DIR;
+      else process.env.DOCUPULSE_UPLOAD_DIR = previousUploadDirectory;
+      rmSync(uploadDirectory, { recursive: true, force: true });
+    }
+  });
 
   let uploadedDocId1 = '';
   let uploadedDocId2 = '';
@@ -115,11 +201,11 @@ export async function runBackendApiTests(): Promise<{
     const interruptedDoc = repo.getDocument(uploadedDocId2);
     if (!interruptedDoc) throw new Error('Persisted document was not found for recovery test');
     interruptedDoc.status = 'queued';
-    repo.saveDocument(interruptedDoc);
+    repo.saveJobState(interruptedDoc, interruptedDoc.retryCount + 1, 'queued');
     const restartedController = new DocumentController(repo, sourceStorage);
-    const restored = restartedController.getStore().get(uploadedDocId2);
-    if (!restored?.rawBuffer || restored.rawBuffer.byteLength === 0) {
-      throw new Error('Restart did not restore the persisted source file');
+    const restored = repo.getDocument(uploadedDocId2);
+    if (!restored?.storagePath || !sourceStorage.read(restored.storagePath)) {
+      throw new Error('Restart recovery could not locate the persisted source file');
     }
     let attempts = 0;
     let restartedMeta = restartedController.getDocumentMetadata(uploadedDocId2);
@@ -159,7 +245,7 @@ export async function runBackendApiTests(): Promise<{
       },
       reason: 'Audit correction per physical PO document',
       revalidate: true,
-    });
+    }, 'finance-reviewer-17');
 
     if (!correctionRes.success) throw new Error('Correction response indicated failure');
     if (!correctionRes.updatedFields.includes('invoice_number')) throw new Error('invoice_number not recorded in updatedFields');
@@ -171,6 +257,9 @@ export async function runBackendApiTests(): Promise<{
     }
     if (lastAudit.reason !== 'Audit correction per physical PO document') {
       throw new Error('Audit reason mismatch');
+    }
+    if (lastAudit.author !== 'finance-reviewer-17') {
+      throw new Error(`Correction audit author was not the authenticated actor: ${lastAudit.author}`);
     }
 
     // Verify result reflects update
@@ -262,22 +351,25 @@ export async function runBackendApiTests(): Promise<{
   });
 
   // 8. Health check endpoint (GET /health)
-  await test('8. Health endpoint (GET /health) returns queue metrics and assessment auth warning', async () => {
+  await test('8. Health endpoint (GET /health) returns queue metrics and accurate auth status', async () => {
     const health = controller.getHealth();
     if (health.status !== 'ok') throw new Error(`Expected health ok, got ${health.status}`);
     if (health.databaseStatus !== 'connected') throw new Error('Health check did not confirm the database connection');
     if (health.queueStatus.total <= 0) throw new Error('Queue status total should be > 0');
-    if (!health.authWarning.includes('Local assessment demo')) {
-      throw new Error('Missing local assessment demo auth disclosure');
+    if (![
+      'Bearer-token authentication is enabled',
+      'Development authentication bypass is enabled',
+      'API authentication is not configured',
+    ].some(status => health.authWarning.startsWith(status))) {
+      throw new Error('Health endpoint did not disclose an accurate authentication status.');
     }
   });
 
   // 9. Cross-verification endpoint test
   await test('9. Cross-verification endpoint validates matching documents and flags missing IDs', async () => {
     // Both documents need extraction
-    const store = controller.getStore();
-    const doc1 = store.get(uploadedDocId1);
-    const doc2 = store.get(uploadedDocId2);
+    const doc1 = repo.getDocument(uploadedDocId1);
+    const doc2 = repo.getDocument(uploadedDocId2);
 
     if (doc1 && doc2) {
       doc1.extraction = {
@@ -290,6 +382,7 @@ export async function runBackendApiTests(): Promise<{
         currency: 'USD',
         line_items: [{ description: 'Test Item', quantity: 1, unit_price: 1000, amount: 1000 }],
       } as any;
+      repo.saveDocument(doc1);
 
       doc2.extraction = {
         invoice_number: 'PO-CROSS-A',
@@ -301,6 +394,7 @@ export async function runBackendApiTests(): Promise<{
         currency: 'USD',
         line_items: [{ description: 'Test Item', quantity: 1, unit_price: 1000, amount: 1000 }],
       } as any;
+      repo.saveDocument(doc2);
 
       const crossRes = controller.crossVerifyDocuments(uploadedDocId1, uploadedDocId2);
       if (crossRes.matchScorePercent < 80) {

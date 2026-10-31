@@ -1,5 +1,8 @@
 import { PageContent, DocumentMetadata } from './types.ts';
-import { ocrService } from './ocrService.ts';
+import { OcrService, ocrService } from './ocrService.ts';
+import { createOcrImageVariants } from './imagePreprocessor.ts';
+
+const MAX_TIFF_PAGES = 50;
 
 export interface ImageProcessingResult {
   pages: PageContent[];
@@ -15,7 +18,8 @@ export interface ImageProcessingResult {
 export async function processImage(
   buffer: Uint8Array,
   filename: string,
-  mimeType = 'image/jpeg'
+  mimeType = 'image/jpeg',
+  ocr: Pick<OcrService, 'performOcr'> = ocrService
 ): Promise<ImageProcessingResult> {
   const warnings: string[] = [];
   const ext = filename.split('.').pop()?.toLowerCase();
@@ -29,53 +33,35 @@ export async function processImage(
     throw new Error('Corrupted image: valid dimensions could not be read from the image header.');
   }
 
-  let pageCount = 1;
-  if (isTiff) {
-    pageCount = countTiffDirectories(buffer);
-    if (pageCount > 1) {
-      warnings.push(`Multi-page TIFF detected containing ${pageCount} image directories.`);
-      warnings.push('TIFF frame boundaries are detected, but OCR text cannot yet be isolated per frame.');
-    }
-  }
-
-  // 2. Perform verified OCR extraction
-  const ocrResult = await ocrService.performOcr(buffer, {
-    filename,
-    mimeType: isTiff ? 'image/tiff' : mimeType,
-    isScanned: true,
-  });
-
-  if (ocrResult.warnings) {
-    warnings.push(...ocrResult.warnings);
-  }
+  const pageCount = isTiff ? await getTiffPageCount(buffer) : 1;
+  if (pageCount > 1) warnings.push(`Multi-page TIFF detected containing ${pageCount} image directories.`);
 
   const pages: PageContent[] = [];
-  const ocrLines = ocrResult.text.split('\n').filter(l => l.trim().length > 0);
-
-  // If multi-page TIFF, allocate page content
-  if (pageCount > 1) {
-    for (let i = 1; i <= pageCount; i++) {
-      pages.push({
-        pageNumber: i,
-        text: i === 1 ? ocrResult.text : '',
-        lineCount: i === 1 ? ocrLines.length : 0,
-        lines: i === 1 ? ocrLines : [],
-        isOcr: true,
-        confidence: ocrResult.confidence,
-      });
-    }
-  } else {
+  for (let index = 0; index < pageCount; index++) {
+    const variants = await createOcrImageVariants(buffer, isTiff ? index : undefined);
+    if (variants.warning) warnings.push(`Page ${index + 1}: ${variants.warning}`);
+    const ocrResult = await ocr.performOcr(
+      variants.enhanced,
+      {
+        filename,
+        mimeType: 'image/png',
+        isScanned: true,
+      },
+      variants.highContrast
+    );
+    if (ocrResult.warnings) warnings.push(...ocrResult.warnings.map(warning => `Page ${index + 1}: ${warning}`));
+    const ocrLines = ocrResult.text.split(/\r?\n/).filter(line => line.trim().length > 0);
     pages.push({
-      pageNumber: 1,
+      pageNumber: index + 1,
       text: ocrResult.text,
       lineCount: ocrLines.length,
       lines: ocrLines,
       isOcr: true,
-      confidence: ocrResult.confidence,
+      ...(ocrResult.confidence !== null ? { confidence: ocrResult.confidence } : {}),
     });
   }
 
-  const rawText = pages.map(p => p.text).join('\n\n');
+  const rawText = pages.map(page => `--- PAGE ${page.pageNumber} ---\n${page.text}`).join('\n\n');
 
   return {
     pages,
@@ -90,6 +76,23 @@ export async function processImage(
   };
 }
 
+async function getTiffPageCount(buffer: Uint8Array): Promise<number> {
+  const sharpPackage = 'sharp';
+  const { default: sharp } = await import(/* @vite-ignore */ sharpPackage);
+  const metadata = await sharp(buffer, {
+    limitInputPixels: 100_000_000,
+    failOn: 'error',
+    animated: true,
+  }).metadata();
+  if (!metadata.pages || metadata.pages < 1) {
+    throw new Error('TIFF contains no readable image frames.');
+  }
+  if (metadata.pages > MAX_TIFF_PAGES) {
+    throw new Error(`TIFF has ${metadata.pages} frames; the processing limit is ${MAX_TIFF_PAGES}.`);
+  }
+  return metadata.pages;
+}
+
 /**
  * Checks TIFF magic bytes (Intel II or Motorola MM).
  */
@@ -98,40 +101,6 @@ function isTiffBuffer(buf: Uint8Array): boolean {
   const isLittle = buf[0] === 0x49 && buf[1] === 0x49 && buf[2] === 0x2A && buf[3] === 0x00;
   const isBig = buf[0] === 0x4D && buf[1] === 0x4D && buf[2] === 0x00 && buf[3] === 0x2A;
   return isLittle || isBig;
-}
-
-/**
- * Traverses TIFF Image File Directories (IFDs) to calculate page count.
- */
-function countTiffDirectories(buf: Uint8Array): number {
-  if (!isTiffBuffer(buf)) return 1;
-
-  const isLittle = buf[0] === 0x49;
-  const readUint32 = (offset: number) => {
-    if (offset + 4 > buf.length) return 0;
-    return isLittle
-      ? buf[offset] | (buf[offset + 1] << 8) | (buf[offset + 2] << 16) | (buf[offset + 3] << 24)
-      : (buf[offset] << 24) | (buf[offset + 1] << 16) | (buf[offset + 2] << 8) | buf[offset + 3];
-  };
-
-  const readUint16 = (offset: number) => {
-    if (offset + 2 > buf.length) return 0;
-    return isLittle ? buf[offset] | (buf[offset + 1] << 8) : (buf[offset] << 8) | buf[offset + 1];
-  };
-
-  let pageCount = 0;
-  let ifdOffset = readUint32(4);
-
-  // Traverse IFD linked list (maximum safe limit of 50 pages)
-  while (ifdOffset > 0 && ifdOffset < buf.length && pageCount < 50) {
-    pageCount++;
-    const numEntries = readUint16(ifdOffset);
-    const nextIfdPointerOffset = ifdOffset + 2 + numEntries * 12;
-    if (nextIfdPointerOffset + 4 > buf.length) break;
-    ifdOffset = readUint32(nextIfdPointerOffset);
-  }
-
-  return Math.max(1, pageCount);
 }
 
 /**

@@ -1,5 +1,8 @@
+import type { PDFPageProxy } from 'pdfjs-dist/types/src/display/api.d.ts';
+import type { PageViewport } from 'pdfjs-dist/types/src/display/page_viewport.d.ts';
 import { PageContent, DocumentMetadata } from './types.ts';
-import { ocrService } from './ocrService.ts';
+import { OcrResult, OcrService, ocrService } from './ocrService.ts';
+import { createOcrImageVariants } from './imagePreprocessor.ts';
 
 export interface PdfProcessingResult {
   pages: PageContent[];
@@ -9,110 +12,85 @@ export interface PdfProcessingResult {
 }
 
 /**
- * Robust Digital & Scanned PDF Processor.
- * Extracts text page-by-page while preserving exact page boundaries.
- * Detects scanned image-only pages and routes them to OCR service.
+ * Extracts PDF text with PDF.js, including compressed content streams.
+ * Documents without readable text are sent to the configured OCR provider.
  */
 export async function processPdf(
   buffer: Uint8Array,
-  filename: string
+  filename: string,
+  ocr: Pick<OcrService, 'performOcr'> = ocrService
 ): Promise<PdfProcessingResult> {
-  const warnings: string[] = [];
-  const pages: PageContent[] = [];
-
-  // 1. Verify PDF Magic Byte Header
-  const headerStr = String.fromCharCode(...buffer.slice(0, 8));
-  if (!headerStr.startsWith('%PDF-')) {
+  if (buffer.length < 5 || new TextDecoder().decode(buffer.subarray(0, 5)) !== '%PDF-') {
     throw new Error('Corrupted or invalid PDF format: Missing %PDF- header magic bytes.');
   }
 
-  // 2. Decode content to parse object streams and page descriptors
-  const binaryString = new TextDecoder('latin1').decode(buffer);
-  if (!binaryString.includes('%%EOF')) {
-    throw new Error('Corrupted PDF: end-of-file marker is missing.');
-  }
-  if (!/startxref\s+\d+\s+%%EOF/.test(binaryString) ||
-    !(/\btrailer\b/.test(binaryString) || /\/Type\s*\/XRef\b/.test(binaryString))) {
-    throw new Error('Corrupted PDF: cross-reference or trailer metadata is missing.');
-  }
+  const { getDocument } = await import('pdfjs-dist/legacy/build/pdf.mjs');
+  const loadingTask = getDocument({
+    data: new Uint8Array(buffer),
+    useSystemFonts: true,
+    verbosity: 0,
+  });
+  const pdf = await loadingTask.promise;
+  const pages: PageContent[] = [];
+  const warnings: string[] = [];
 
-  // Split by pages or page objects
-  // Count pages using /Type /Page or /Count references
-  const pageMatches = [...binaryString.matchAll(/\/Type\s*\/Page\b/g)];
-  let estimatedPageCount = pageMatches.length;
+  try {
+    for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
+      const page = await pdf.getPage(pageNumber);
+      const textContent = await page.getTextContent();
+      const text = textContent.items
+        .map(item => 'str' in item ? `${item.str}${item.hasEOL ? '\n' : ' '}` : '')
+        .join('')
+        .trim();
 
-  if (estimatedPageCount === 0) {
-    // Try checking /Count in /Pages
-    const countMatch = binaryString.match(/\/Type\s*\/Pages[^>]*\/Count\s+(\d+)/);
-    if (countMatch && countMatch[1]) {
-      estimatedPageCount = parseInt(countMatch[1], 10);
-    } else {
-      estimatedPageCount = 1;
-    }
-  }
+      if (text) {
+        const lines = text.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+        pages.push({
+          pageNumber,
+          text,
+          lineCount: lines.length,
+          lines,
+          isOcr: false,
+        });
+        page.cleanup();
+        continue;
+      }
 
-  // 3. Extract stream blocks with bounded forward scans rather than a backtracking regex.
-  const rawStreams = extractPdfStreams(binaryString);
-
-  // Parse text operators from uncompressed text or BT ... ET blocks
-  const extractedTextChunks: string[] = [];
-  for (const stream of rawStreams) {
-    const textInStream = parsePdfTextOperators(stream);
-    if (textInStream.trim()) {
-      extractedTextChunks.push(textInStream.trim());
-    }
-  }
-
-  // Check if we extracted digital text
-  let isScanned = false;
-  if (extractedTextChunks.length === 0) {
-    // No native text found - PDF is scanned / rasterized!
-    isScanned = true;
-    warnings.push('Document contains no extractable digital text stream. Classified as scanned PDF; routing to OCR.');
-    
-    // Perform OCR on document content
-    const ocrResult = await ocrService.performOcr(buffer, {
-      filename,
-      mimeType: 'application/pdf',
-      isScanned: true,
-    });
-
-    if (ocrResult.warnings) {
-      warnings.push(...ocrResult.warnings);
-    }
-
-    const ocrLines = ocrResult.text.split('\n').filter(l => l.trim().length > 0);
-    pages.push({
-      pageNumber: 1,
-      text: ocrResult.text,
-      lineCount: ocrLines.length,
-      lines: ocrLines,
-      isOcr: true,
-      confidence: ocrResult.confidence,
-    });
-  } else {
-    // Digital text exists: allocate across pages
-    const pagesToCreate = Math.max(1, estimatedPageCount);
-    const chunksPerPage = Math.max(1, Math.ceil(extractedTextChunks.length / pagesToCreate));
-
-    for (let p = 0; p < pagesToCreate; p++) {
-      const pageChunks = extractedTextChunks.slice(p * chunksPerPage, (p + 1) * chunksPerPage);
-      const pageText = pageChunks.join('\n\n') || `[Page ${p + 1} - No readable text content]`;
-      const lines = pageText.split('\n').filter(l => l.trim().length > 0);
-
+      warnings.push(`Page ${pageNumber} contains no extractable PDF text and was routed to OCR.`);
+      const baseViewport = page.getViewport({ scale: 2 });
+      const pixelCount = baseViewport.width * baseViewport.height;
+      const renderScale = pixelCount > 40_000_000
+        ? 2 * Math.sqrt(40_000_000 / pixelCount)
+        : 2;
+      const viewport = page.getViewport({ scale: renderScale });
+      const renderedPage = await renderPdfPage(page, viewport);
+      const variants = await createOcrImageVariants(new Uint8Array(renderedPage));
+      if (variants.warning) warnings.push(`Page ${pageNumber}: ${variants.warning}`);
+      const ocrResult: OcrResult = await ocr.performOcr(
+        variants.enhanced,
+        { filename: `${filename}#page=${pageNumber}`, mimeType: 'image/png', isScanned: true },
+        variants.highContrast
+      );
+      if (ocrResult.warnings) warnings.push(...ocrResult.warnings.map(warning => `Page ${pageNumber}: ${warning}`));
+      const pageText = ocrResult.text;
+      const ocrLines = pageText.split(/\r?\n/).filter(line => line.trim());
       pages.push({
-        pageNumber: p + 1,
+        pageNumber,
         text: pageText,
-        lineCount: lines.length,
-        lines,
-        isOcr: false,
+        lineCount: ocrLines.length,
+        lines: ocrLines,
+        isOcr: true,
+        ...(ocrResult.confidence !== null ? { confidence: ocrResult.confidence } : {}),
       });
+      page.cleanup();
     }
+  } finally {
+    await loadingTask.destroy();
   }
 
-  // Generate full consolidated text with clear page markers
-  const consolidatedText = pages
-    .map(p => `--- PAGE ${p.pageNumber} ---\n${p.text}`)
+  const isScanned = pages.some(page => page.isOcr);
+  const rawText = pages
+    .map(page => `--- PAGE ${page.pageNumber} ---\n${page.text}`)
     .join('\n\n');
 
   return {
@@ -123,99 +101,37 @@ export async function processPdf(
       hasMultiPages: pages.length > 1,
     },
     warnings,
-    rawText: consolidatedText,
+    rawText,
   };
 }
 
-function extractPdfStreams(pdfContent: string): string[] {
-  const streams: string[] = [];
-  let cursor = 0;
-
-  while (cursor < pdfContent.length) {
-    const streamStart = pdfContent.indexOf('stream', cursor);
-    if (streamStart < 0) break;
-
-    const dataStart = streamStart + 'stream'.length;
-    let bodyStart: number;
-    if (pdfContent.startsWith('\r\n', dataStart)) {
-      bodyStart = dataStart + 2;
-    } else if (pdfContent[dataStart] === '\n') {
-      bodyStart = dataStart + 1;
-    } else {
-      cursor = dataStart;
-      continue;
-    }
-
-    const endStream = pdfContent.indexOf('endstream', bodyStart);
-    if (endStream < 0) break;
-
-    let bodyEnd = endStream;
-    if (pdfContent[bodyEnd - 1] === '\n') {
-      bodyEnd--;
-      if (pdfContent[bodyEnd - 1] === '\r') bodyEnd--;
-    } else if (pdfContent[bodyEnd - 1] === '\r') {
-      bodyEnd--;
-    }
-
-    streams.push(pdfContent.slice(bodyStart, bodyEnd));
-    cursor = endStream + 'endstream'.length;
+async function renderPdfPage(
+  page: PDFPageProxy,
+  viewport: PageViewport
+): Promise<Uint8Array> {
+  if (typeof document !== 'undefined') {
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.ceil(viewport.width);
+    canvas.height = Math.ceil(viewport.height);
+    const context = canvas.getContext('2d');
+    if (!context) throw new Error('Unable to create a canvas context for scanned PDF rendering.');
+    await page.render({
+      canvasContext: context as unknown as Parameters<typeof page.render>[0]['canvasContext'],
+      canvas: canvas as unknown as Parameters<typeof page.render>[0]['canvas'],
+      viewport,
+    }).promise;
+    const dataUrl = canvas.toDataURL('image/png');
+    const base64 = dataUrl.slice(dataUrl.indexOf(',') + 1);
+    return Uint8Array.from(atob(base64), character => character.charCodeAt(0));
   }
 
-  return streams;
-}
-
-/**
- * Extracts text from standard PDF text operators:
- * (Text) Tj, [(T) 10 (ext)] TJ, ' (newline + text), "
- */
-function parsePdfTextOperators(streamContent: string): string {
-  const result: string[] = [];
-
-  // Match (literal string) Tj
-  const tjRegex = /\(([^)]*)\)\s*Tj/g;
-  let tjMatch;
-  while ((tjMatch = tjRegex.exec(streamContent)) !== null) {
-    result.push(cleanPdfString(tjMatch[1]));
-  }
-
-  // Match [(array of strings and kerning numbers)] TJ
-  const tjArrayRegex = /\[([^\]]*)\]\s*TJ/g;
-  let arrayMatch;
-  while ((arrayMatch = tjArrayRegex.exec(streamContent)) !== null) {
-    const inner = arrayMatch[1];
-    const subMatches = inner.match(/\(([^)]*)\)/g);
-    if (subMatches) {
-      const combined = subMatches
-        .map(s => cleanPdfString(s.slice(1, -1)))
-        .join('');
-      result.push(combined);
-    }
-  }
-
-  // Also check plain strings enclosed in parentheses inside BT ... ET
-  if (result.length === 0) {
-    const btRegex = /BT\s*([\s\S]*?)\s*ET/g;
-    let btMatch;
-    while ((btMatch = btRegex.exec(streamContent)) !== null) {
-      const btBlock = btMatch[1];
-      const stringMatches = btBlock.match(/\(([^)]*)\)/g);
-      if (stringMatches) {
-        result.push(
-          stringMatches.map(s => cleanPdfString(s.slice(1, -1))).join(' ')
-        );
-      }
-    }
-  }
-
-  return result.join('\n');
-}
-
-function cleanPdfString(raw: string): string {
-  return raw
-    .replace(/\\n/g, '\n')
-    .replace(/\\r/g, '\r')
-    .replace(/\\t/g, '\t')
-    .replace(/\\([()\\])/g, '$1')
-    .replace(/\s+/g, ' ')
-    .trim();
+  const canvasPackage = '@napi-rs/canvas';
+  const { createCanvas } = await import(/* @vite-ignore */ canvasPackage);
+  const canvas = createCanvas(Math.ceil(viewport.width), Math.ceil(viewport.height));
+  await page.render({
+    canvasContext: canvas.getContext('2d') as unknown as Parameters<typeof page.render>[0]['canvasContext'],
+    canvas: canvas as unknown as Parameters<typeof page.render>[0]['canvas'],
+    viewport,
+  }).promise;
+  return new Uint8Array(canvas.toBuffer('image/png'));
 }

@@ -3,75 +3,119 @@
  * Endpoints: /api/v1/documents, /api/v1/documents/:id, /api/v1/openapi.json, /health
  */
 
-import express, { Request, Response, NextFunction } from 'express';
+import express, { Request, Response, NextFunction, RequestHandler } from 'express';
+import multer from 'multer';
+import { randomUUID } from 'node:crypto';
+import { mkdirSync, rmSync } from 'node:fs';
 import { documentController, HttpError } from './documentController.ts';
 import { JobStatus } from './types.ts';
+import { apiAuthenticationMiddleware, getAuthenticatedActor } from './authentication.ts';
+import { getIncomingUploadDirectory } from '../document/sourceStorage.ts';
 
 export const apiRouter = express.Router();
+apiRouter.use('/api/v1/documents', apiAuthenticationMiddleware);
 
-function decodeUploadData(data: unknown): Uint8Array {
-  if (typeof data === 'string') {
-    if (!data.startsWith('data:')) return Buffer.from(data, 'utf-8');
-    const match = data.match(/^data:[^;,]+;base64,([A-Za-z0-9+/]*={0,2})$/);
-    if (!match || match[1].length % 4 !== 0) {
-      throw new HttpError(400, 'INVALID_BASE64_DATA', 'File data URL must contain valid base64 data.', 'data');
+const MAX_UPLOAD_REQUEST_BYTES = 35 * 1024 * 1024;
+const MAX_UPLOAD_FILES = 10;
+const multipartUpload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, callback) => {
+      try {
+        const directory = getIncomingUploadDirectory();
+        mkdirSync(directory, { recursive: true });
+        callback(null, directory);
+      } catch (error) {
+        callback(error instanceof Error ? error : new Error(String(error)), '');
+      }
+    },
+    filename: (_req, _file, callback) => callback(null, `${randomUUID()}.upload`),
+  }),
+  limits: {
+    fileSize: 25 * 1024 * 1024,
+    files: MAX_UPLOAD_FILES,
+    fields: 0,
+    fieldNameSize: 100,
+  },
+});
+
+function stagedFiles(req: Request): Express.Multer.File[] {
+  return Array.isArray(req.files) ? req.files : [];
+}
+
+function removeStagedFiles(files: Express.Multer.File[]): void {
+  for (const file of files) {
+    try {
+      rmSync(file.path, { force: true });
+    } catch (error) {
+      console.error(`Could not remove temporary upload ${file.filename}:`, error);
     }
-    const buffer = Buffer.from(match[1], 'base64');
-    if (buffer.toString('base64') !== match[1]) {
-      throw new HttpError(400, 'INVALID_BASE64_DATA', 'File data URL must contain valid base64 data.', 'data');
+  }
+}
+
+function handleMultipartUpload(req: Request, res: Response, next: NextFunction): void {
+  const contentLength = Number(req.headers['content-length']);
+  if (Number.isFinite(contentLength) && contentLength > MAX_UPLOAD_REQUEST_BYTES) {
+    next(new HttpError(413, 'UPLOAD_REQUEST_TOO_LARGE', 'Upload request exceeds the 35 MB request limit.'));
+    return;
+  }
+
+  multipartUpload.array('files', MAX_UPLOAD_FILES)(req, res, error => {
+    if (!error) {
+      next();
+      return;
     }
-    return buffer;
-  }
-  if (data instanceof Uint8Array) return new Uint8Array(data);
-  if (Array.isArray(data) && data.every(value =>
-    Number.isInteger(value) && value >= 0 && value <= 255
-  )) {
-    return new Uint8Array(data);
-  }
-  throw new HttpError(400, 'INVALID_FILE_DATA', 'File data must be a data URL, text, or byte array.', 'data');
+
+    removeStagedFiles(stagedFiles(req));
+    if (error instanceof multer.MulterError) {
+      const tooLarge = error.code === 'LIMIT_FILE_SIZE' || error.code === 'LIMIT_FILE_COUNT';
+      next(new HttpError(
+        tooLarge ? 413 : 400,
+        tooLarge ? 'UPLOAD_LIMIT_EXCEEDED' : 'INVALID_MULTIPART_UPLOAD',
+        tooLarge
+          ? 'Upload exceeds the per-file size or file-count limit.'
+          : 'Multipart upload must contain files in the "files" field.'
+      ));
+      return;
+    }
+    next(error);
+  });
+}
+
+export function createDocumentUploadHandler(
+  controller = documentController
+): RequestHandler[] {
+  return [
+    handleMultipartUpload,
+    async (req: Request, res: Response, next: NextFunction) => {
+      const files = stagedFiles(req);
+      try {
+        if (files.length === 0) {
+          throw new HttpError(400, 'NO_FILES_PROVIDED', 'At least one multipart file is required in the "files" field.');
+        }
+
+        const totalBytes = files.reduce((total, file) => total + file.size, 0);
+        if (totalBytes > MAX_UPLOAD_REQUEST_BYTES) {
+          throw new HttpError(413, 'UPLOAD_REQUEST_TOO_LARGE', 'Combined uploaded file data exceeds the 35 MB request limit.');
+        }
+
+        const result = await controller.uploadDocumentsFromDisk(files.map(file => ({
+          originalName: file.originalname,
+          size: file.size,
+          type: file.mimetype,
+          path: file.path,
+        })));
+        res.status(202).json(result);
+      } catch (err) {
+        next(err);
+      } finally {
+        removeStagedFiles(files);
+      }
+    },
+  ];
 }
 
 // 1. POST /api/v1/documents: Upload one or multiple files
-apiRouter.post('/api/v1/documents', async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const rawFiles = req.body?.files;
-    let fileInputs: Array<{ name: string; size: number; type?: string; buffer: Uint8Array }> = [];
-
-    if (Array.isArray(rawFiles) && rawFiles.length > 0) {
-      for (const f of rawFiles) {
-        if (!f || typeof f !== 'object' || Array.isArray(f)) {
-          throw new HttpError(400, 'INVALID_FILE_ENTRY', 'Each files entry must be an object.', 'files');
-        }
-        const buffer = decodeUploadData(f.data);
-
-        fileInputs.push({
-          name: f.name || 'unnamed_document',
-          size: f.size !== undefined ? f.size : buffer.length,
-          type: f.type,
-          buffer,
-        });
-      }
-    } else if (req.body?.name && req.body?.data) {
-      // Single file JSON payload
-      const f = req.body;
-      const buffer = decodeUploadData(f.data);
-
-      fileInputs.push({
-        name: f.name,
-        size: f.size !== undefined ? f.size : buffer.length,
-        type: f.type,
-        buffer,
-      });
-    } else {
-      throw new HttpError(400, 'NO_FILES_PROVIDED', 'Request body must contain "files" array or single file payload.');
-    }
-
-    const result = await documentController.uploadDocuments(fileInputs);
-    res.status(202).json(result);
-  } catch (err) {
-    next(err);
-  }
-});
+apiRouter.post('/api/v1/documents', ...createDocumentUploadHandler());
 
 // 2. GET /api/v1/documents/search/semantic: Genuine vector semantic search
 apiRouter.get('/api/v1/documents/search/semantic', async (req: Request, res: Response, next: NextFunction) => {
@@ -153,7 +197,11 @@ apiRouter.get('/api/v1/documents', (req: Request, res: Response, next: NextFunct
 // 5. PATCH /api/v1/documents/:document_id/corrections: Validated manual correction
 apiRouter.patch('/api/v1/documents/:document_id/corrections', (req: Request, res: Response, next: NextFunction) => {
   try {
-    const response = documentController.applyCorrections(req.params.document_id, req.body);
+    const response = documentController.applyCorrections(
+      req.params.document_id,
+      req.body,
+      getAuthenticatedActor(res)
+    );
     res.json(response);
   } catch (err) {
     next(err);
@@ -185,20 +233,37 @@ apiRouter.get('/api/v1/openapi.json', (_req: Request, res: Response) => {
  * Defensive error handling middleware.
  * Never leaks server paths, stack traces, or internal secrets.
  */
-export function safeErrorHandler(err: any, _req: Request, res: Response, _next: NextFunction) {
-  const statusCode = err instanceof HttpError ? err.statusCode : 500;
-  const errorCode = err instanceof HttpError ? err.errorCode : 'INTERNAL_SERVER_ERROR';
-  const message = err.message || 'An unexpected server error occurred.';
+export function safeErrorHandler(err: unknown, _req: Request, res: Response, _next: NextFunction) {
+  const knownError = err instanceof HttpError;
+  if (!knownError) console.error('Unhandled API request failure:', err);
+  const publicError = toPublicApiError(err);
+  const { statusCode, ...error } = publicError;
 
-  // Suppress stack trace in production and assessment environments
   res.status(statusCode).json({
     success: false,
-    error: {
-      code: errorCode,
-      message,
-      field: err.field || undefined,
-    },
+    error,
   });
+}
+
+export function toPublicApiError(err: unknown): {
+  statusCode: number;
+  code: string;
+  message: string;
+  field?: string;
+} {
+  if (!(err instanceof HttpError)) {
+    return {
+      statusCode: 500,
+      code: 'INTERNAL_SERVER_ERROR',
+      message: 'An unexpected server error occurred.',
+    };
+  }
+  return {
+    statusCode: err.statusCode,
+    code: err.errorCode,
+    message: err.message,
+    ...(err.field ? { field: err.field } : {}),
+  };
 }
 
 const openApiSpecification = {
@@ -218,6 +283,20 @@ const openApiSpecification = {
     '/api/v1/documents': {
       post: {
         summary: 'Upload documents and enqueue processing jobs',
+        requestBody: {
+          required: true,
+          content: {
+            'multipart/form-data': {
+              schema: {
+                type: 'object',
+                required: ['files'],
+                properties: {
+                  files: { type: 'array', items: { type: 'string', format: 'binary' } },
+                },
+              },
+            },
+          },
+        },
         responses: { '202': { description: 'Jobs queued successfully' } },
       },
       get: {

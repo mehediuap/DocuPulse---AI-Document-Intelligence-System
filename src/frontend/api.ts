@@ -18,6 +18,31 @@ import {
 // Configurable base URL via environment variable; supports empty (same-origin), root host, or /api/v1 paths
 const rawBase = (import.meta.env.VITE_API_BASE_URL || '').trim().replace(/\/$/, '');
 const API_BASE = rawBase.replace(/\/api\/v1\/?$/, '');
+const API_TOKEN_STORAGE_KEY = 'docupulse.apiToken';
+let configuredApiToken: string | null = null;
+
+export function getApiAuthToken(): string {
+  if (configuredApiToken !== null) return configuredApiToken;
+  return typeof window === 'undefined'
+    ? ''
+    : window.sessionStorage.getItem(API_TOKEN_STORAGE_KEY) || '';
+}
+
+export function setApiAuthToken(token: string): void {
+  configuredApiToken = token.trim();
+  if (typeof window !== 'undefined') {
+    if (configuredApiToken) window.sessionStorage.setItem(API_TOKEN_STORAGE_KEY, configuredApiToken);
+    else window.sessionStorage.removeItem(API_TOKEN_STORAGE_KEY);
+  }
+}
+
+function requestHeaders(contentType?: string): HeadersInit {
+  const headers: Record<string, string> = {};
+  if (contentType) headers['Content-Type'] = contentType;
+  const token = getApiAuthToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+  return headers;
+}
 
 export class FrontendApiError extends Error {
   public code: string;
@@ -59,16 +84,14 @@ async function handleResponse<T>(res: Response): Promise<T> {
 }
 
 export const api = {
-  /**
-   * Ingests one or more documents (base64 payload)
-   */
-  async uploadDocuments(
-    files: Array<{ name: string; size: number; type?: string; data: string }>
-  ): Promise<DocumentUploadResponse> {
+  /** Streams one or more files as multipart form data. */
+  async uploadDocuments(files: File[]): Promise<DocumentUploadResponse> {
+    const body = new FormData();
+    for (const file of files) body.append('files', file, file.name);
     const res = await fetch(`${API_BASE}/api/v1/documents`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ files }),
+      headers: requestHeaders(),
+      body,
     });
     return handleResponse<DocumentUploadResponse>(res);
   },
@@ -90,7 +113,7 @@ export const api = {
 
     const queryString = query.toString();
     const url = `${API_BASE}/api/v1/documents${queryString ? `?${queryString}` : ''}`;
-    const res = await fetch(url);
+    const res = await fetch(url, { headers: requestHeaders() });
     return handleResponse<DocumentListResponse>(res);
   },
 
@@ -98,7 +121,9 @@ export const api = {
    * Retrieves document metadata and current processing job status
    */
   async getDocumentMetadata(documentId: string): Promise<DocumentMetadataResponse> {
-    const res = await fetch(`${API_BASE}/api/v1/documents/${encodeURIComponent(documentId)}`);
+    const res = await fetch(`${API_BASE}/api/v1/documents/${encodeURIComponent(documentId)}`, {
+      headers: requestHeaders(),
+    });
     return handleResponse<DocumentMetadataResponse>(res);
   },
 
@@ -106,7 +131,9 @@ export const api = {
    * Retrieves full extraction, validation, and audit trail results
    */
   async getDocumentResult(documentId: string): Promise<DocumentResultResponse> {
-    const res = await fetch(`${API_BASE}/api/v1/documents/${encodeURIComponent(documentId)}/result`);
+    const res = await fetch(`${API_BASE}/api/v1/documents/${encodeURIComponent(documentId)}/result`, {
+      headers: requestHeaders(),
+    });
     return handleResponse<DocumentResultResponse>(res);
   },
 
@@ -126,7 +153,7 @@ export const api = {
     };
     const res = await fetch(`${API_BASE}/api/v1/documents/${encodeURIComponent(documentId)}/corrections`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: requestHeaders('application/json'),
       body: JSON.stringify(payload),
     });
     return handleResponse<CorrectionResponse>(res);
@@ -138,6 +165,7 @@ export const api = {
   async retryDocument(documentId: string): Promise<RetryResponse> {
     const res = await fetch(`${API_BASE}/api/v1/documents/${encodeURIComponent(documentId)}/retry`, {
       method: 'POST',
+      headers: requestHeaders(),
     });
     return handleResponse<RetryResponse>(res);
   },
@@ -148,7 +176,7 @@ export const api = {
   async crossVerify(sourceId: string, targetId: string): Promise<any> {
     const res = await fetch(`${API_BASE}/api/v1/documents/cross-verify`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: requestHeaders('application/json'),
       body: JSON.stringify({ sourceId, targetId }),
     });
     return handleResponse<any>(res);
@@ -159,7 +187,9 @@ export const api = {
    */
   async semanticSearch(query: string, minSimilarity = 0.2): Promise<any> {
     const q = encodeURIComponent(query.trim());
-    const res = await fetch(`${API_BASE}/api/v1/documents/search/semantic?q=${q}&min_similarity=${minSimilarity}`);
+    const res = await fetch(`${API_BASE}/api/v1/documents/search/semantic?q=${q}&min_similarity=${minSimilarity}`, {
+      headers: requestHeaders(),
+    });
     return handleResponse<any>(res);
   },
 
@@ -167,8 +197,7 @@ export const api = {
    * Checks system health and queue counts
    */
   async getHealth(): Promise<HealthResponse> {
-    const res = await fetch(`${API_BASE}/health`);
+    const res = await fetch(`${API_BASE}/health`, { headers: requestHeaders() });
     return handleResponse<HealthResponse>(res);
   },
 };
-

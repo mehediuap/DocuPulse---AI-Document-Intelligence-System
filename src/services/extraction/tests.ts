@@ -7,7 +7,9 @@ import { MockRuleBasedAdapter, GeminiExtractionAdapter, ExtractionFactory } from
 import { resolveGoogleGenAIOptions } from './googleGenAIConfig.ts';
 import { validateInvoiceExtraction } from './schemas.ts';
 import { documentPipeline } from '../document/documentPipeline.ts';
+import { processImage } from '../document/imageProcessor.ts';
 import { createDigitalPdfBytes } from '../document/tests.ts';
+import { ValidationService } from '../validation/validationService.ts';
 
 export interface TestRunResult {
   name: string;
@@ -211,7 +213,10 @@ export async function runInformationExtractionTests(): Promise<{
     };
 
     const validation = validateInvoiceExtraction(malformed, 'mock_rule_based');
-    if (!validation.isValid) throw new Error('Schema validator should sanitize non-critical issues gracefully');
+    if (validation.isValid) throw new Error('Malformed financial values must be reported as validation errors');
+    if (!validation.issues.some(issue => issue.field === 'tax' && issue.severity === 'error')) {
+      throw new Error('Malformed tax amount was not retained as a schema error');
+    }
     if (validation.data.subtotal !== 1299.99) throw new Error(`Decimal cleanup failed: ${validation.data.subtotal}`);
     if (validation.data.tax !== null) throw new Error(`Malformed number should become null: ${validation.data.tax}`);
     if (validation.data.currency !== null) throw new Error(`Ambiguous currency symbol should remain null: ${validation.data.currency}`);
@@ -228,6 +233,104 @@ export async function runInformationExtractionTests(): Promise<{
     }
     if (unsafe.data.evidence.total.page_reference !== null || unsafe.data.evidence.total.confidence !== 0) {
       throw new Error('Invalid evidence metadata must not receive invented page references or confidence');
+    }
+
+    const localized = validateInvoiceExtraction({
+      subtotal: '€ 1.234,50',
+      tax: '20,00',
+      total: '1.254,50',
+    });
+    if (localized.data.subtotal !== 1234.5 || localized.data.tax !== 20 || localized.data.total !== 1254.5) {
+      throw new Error('Locale-formatted financial amounts were not parsed correctly.');
+    }
+  });
+
+  await test('Evidence snippets must occur in the source and support extracted values', async () => {
+    const checked = validateInvoiceExtraction({
+      invoice_number: 'INV-FABRICATED-10',
+      subtotal: 100,
+      evidence: {
+        invoice_number: { snippet: 'Invoice Number: INV-REAL-10', confidence: 0.99 },
+        subtotal: { snippet: 'Subtotal: $100.00', confidence: 0.99 },
+      },
+    }, 'mock_rule_based', 'Invoice Number: INV-REAL-10\nSubtotal: $100.00');
+    if (checked.data.evidence.invoice_number.confidence !== 0) {
+      throw new Error('Evidence that does not support the extracted invoice number was trusted.');
+    }
+    if (checked.data.evidence.subtotal.confidence !== 0.99) {
+      throw new Error('Valid financial evidence was rejected.');
+    }
+  });
+
+  await test('Gemini evidence is source-verified and receives the matching page reference', async () => {
+    const sourceText = [
+      '--- PAGE 1 ---',
+      'Subtotal: $20.00',
+      '--- PAGE 2 ---',
+      'Invoice Number: INV-PAGE-2',
+      'Total: $20.00',
+      'Widget | 2 | $10.00 | $20.00',
+    ].join('\n');
+    const checked = validateInvoiceExtraction({
+      invoice_number: 'INV-PAGE-2',
+      total: 20,
+      evidence: {
+        invoice_number: { snippet: 'Invoice Number: INV-PAGE-2', confidence: 0.96 },
+        total: { snippet: 'Total: $20.00', page_reference: 1, confidence: 0.95 },
+      },
+      line_items: [{
+        description: 'Widget',
+        quantity: 2,
+        unit_price: 10,
+        amount: 20,
+        evidence: 'Widget | 2 | $10.00 | $20.00',
+      }],
+    }, 'gemini_llm', sourceText);
+
+    if (checked.data.evidence.invoice_number.page_reference !== 2) {
+      throw new Error('Verified evidence should receive its source page reference.');
+    }
+    if (checked.data.evidence.total.confidence !== 0 || checked.data.evidence.total.page_reference !== null) {
+      throw new Error('Evidence with a page reference that contradicts its source was trusted.');
+    }
+    if (checked.data.line_items[0].page_reference !== 2) {
+      throw new Error('Verified line-item evidence should receive its source page reference.');
+    }
+  });
+
+  await test('Valid PNG OCR extraction passes financial validation', async () => {
+    const sharpPackage = 'sharp';
+    const { default: sharp } = await import(/* @vite-ignore */ sharpPackage);
+    const png = new Uint8Array(await sharp({
+      create: { width: 256, height: 256, channels: 4, background: '#ffffff' },
+    }).png().toBuffer());
+    const recognizedText = [
+      'Invoice Number: INV-2026-005',
+      'Date: 2026-03-22',
+      'Supplier: Beacon Office Supplies',
+      'Customer: Delta Dynamics',
+      'Currency: USD',
+      'Subtotal: $800.00',
+      'Tax: $80.00',
+      'Total: $880.00',
+      'Description | Quantity | Unit Price | Amount',
+      'Ergonomic Monitor Arm | 2 | $250.00 | $500.00',
+      'Wireless Peripheral Kit | 3 | $100.00 | $300.00',
+    ].join('\n');
+    const processed = await processImage(png, 'beacon.png', 'image/png', {
+      performOcr: async () => ({
+        text: recognizedText,
+        confidence: 0.98,
+        engineUsed: 'tesseract',
+        wordCount: recognizedText.split(/\s+/).length,
+        lineCount: recognizedText.split(/\r?\n/).length,
+        tested: true,
+      }),
+    });
+    const extraction = await new MockRuleBasedAdapter().extract(processed.rawText);
+    const validation = ValidationService.validateInvoice(extraction);
+    if (validation.status !== 'valid') {
+      throw new Error(`Valid PNG invoice extraction should pass validation; got ${validation.status}: ${validation.issues.map(issue => issue.code).join(', ')}`);
     }
   });
 

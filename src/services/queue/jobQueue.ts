@@ -1,84 +1,64 @@
 /**
- * Documented Local Background Job Queue Abstraction
- * Manages asynchronous document parsing, OCR, LLM extraction, and validation.
- * 
- * Architecture & Concurrency Rules:
- * - Decouples HTTP upload response from long-running document processing.
- * - Enforces status lifecycle: queued -> processing -> completed / needs_review / invalid / failed.
- * - Employs a concurrency lock (isProcessing) per document to reject duplicate simultaneous retries.
- * - Can be swapped with Redis / Celery in enterprise production clusters.
+ * SQLite-backed background queue with expiring worker leases.
+ * Job payloads remain on disk and are loaded only after a worker claims a job.
  */
 
+import { randomUUID } from 'node:crypto';
 import { DocumentRecord, JobStatus } from '../api/types.ts';
 import { documentPipeline } from '../document/documentPipeline.ts';
+import { DocumentSourceStorage, documentSourceStorage } from '../document/sourceStorage.ts';
 import { ExtractionFactory } from '../extraction/llmAdapter.ts';
 import { ValidationService } from '../validation/validationService.ts';
 import { DocumentRepository, documentRepository } from '../../db/repository.ts';
 
-export type JobHandler = (doc: DocumentRecord) => Promise<void>;
+const LEASE_DURATION_MS = 120_000;
+const POLL_INTERVAL_MS = 500;
 
 export class BackgroundJobQueue {
-  private queue: string[] = [];
-  private activeJobs = new Set<string>();
-  private maxConcurrency = 3;
-  private documentStore: Map<string, DocumentRecord>;
-  private repository: DocumentRepository;
-  private isDraining = false;
+  private readonly workerId = `worker-${randomUUID()}`;
+  private readonly activeJobs = new Set<string>();
+  private readonly maxConcurrency = 3;
+  private readonly repository: DocumentRepository;
+  private readonly sourceStorage: DocumentSourceStorage;
+  private pollTimer: NodeJS.Timeout | undefined;
 
-  constructor(store: Map<string, DocumentRecord>, repository: DocumentRepository = documentRepository) {
-    this.documentStore = store;
+  constructor(
+    repository: DocumentRepository = documentRepository,
+    sourceStorage: DocumentSourceStorage = documentSourceStorage
+  ) {
     this.repository = repository;
+    this.sourceStorage = sourceStorage;
+    this.schedulePoll(0);
   }
 
-  /**
-   * Enqueues a document for background parsing, extraction, and validation.
-   */
   public enqueue(documentId: string): void {
-    const doc = this.documentStore.get(documentId);
-    if (!doc) return;
-
-    if (doc.status !== 'queued') {
-      doc.status = 'queued';
-      doc.updatedAt = new Date().toISOString();
-      this.repository.saveDocument(doc);
+    if (!this.repository.getDocument(documentId)) {
+      throw new Error(`Cannot enqueue unknown document "${documentId}".`);
     }
-
-    if (!this.queue.includes(documentId) && !this.activeJobs.has(documentId)) {
-      this.queue.push(documentId);
-    }
-
-    this.drain();
+    this.schedulePoll(0);
   }
 
-  /**
-   * Safely retries a document processing job with concurrency protection.
-   */
   public retry(documentId: string): { success: boolean; message: string; status: JobStatus } {
-    const doc = this.documentStore.get(documentId);
+    const doc = this.repository.getDocument(documentId);
     if (!doc) {
       return { success: false, message: 'Document not found.', status: 'failed' };
     }
 
-    // Guard against duplicate concurrent retries
-    if (this.activeJobs.has(documentId) || doc.status === 'processing') {
+    if (this.activeJobs.has(documentId) || this.repository.getProcessingJobStatus(documentId) === 'processing') {
       return {
         success: false,
         message: 'Job is already currently being processed. Concurrent duplicate retry rejected.',
-        status: doc.status,
+        status: 'processing',
       };
     }
 
-    if (!doc.rawBuffer) {
+    if (!doc.storagePath || !this.sourceStorage.read(doc.storagePath)) {
       doc.status = 'failed';
       const sourceError = 'Original source file is unavailable; this job cannot be retried.';
       if (doc.errors[doc.errors.length - 1] !== sourceError) doc.errors.push(sourceError);
       doc.updatedAt = new Date().toISOString();
-      this.repository.saveDocument(doc);
-      return {
-        success: false,
-        message: 'Original source file is unavailable; this job cannot be retried.',
-        status: 'failed',
-      };
+      this.repository.saveJobState(doc, doc.retryCount + 1, 'failed', 0, sourceError);
+      return { success: false, message: sourceError, status: 'failed' };
     }
 
     doc.retryCount += 1;
@@ -87,9 +67,7 @@ export class BackgroundJobQueue {
     doc.errors = [];
     doc.warnings = [];
     this.repository.saveJobState(doc, doc.retryCount + 1, 'queued');
-
-    this.queue.push(documentId);
-    this.drain();
+    this.schedulePoll(0);
 
     return {
       success: true,
@@ -98,131 +76,147 @@ export class BackgroundJobQueue {
     };
   }
 
-  /**
-   * Drains the queue respecting concurrency limits.
-   */
-  private async drain(): Promise<void> {
-    if (this.isDraining) return;
-    this.isDraining = true;
-
-    while (this.queue.length > 0 && this.activeJobs.size < this.maxConcurrency) {
-      const docId = this.queue.shift();
-      if (!docId) continue;
-
-      this.activeJobs.add(docId);
-      // Run worker without awaiting to maintain asynchronous queue processing
-      this.processJob(docId).catch(error => {
-        console.error(`Queue worker failed outside document handling for ${docId}:`, error);
-      }).finally(() => {
-        this.activeJobs.delete(docId);
-        this.drain();
+  private schedulePoll(delay = POLL_INTERVAL_MS): void {
+    if (this.pollTimer) return;
+    this.pollTimer = setTimeout(() => {
+      this.pollTimer = undefined;
+      void this.poll().catch(error => {
+        console.error('Persistent job queue polling failed:', error);
+        this.schedulePoll();
       });
-    }
-
-    this.isDraining = false;
+    }, delay);
+    this.pollTimer.unref?.();
   }
 
-  /**
-   * Worker task: Executes Module 1 parsing, Module 2 extraction, and Module 3 validation.
-   */
-  private async processJob(documentId: string): Promise<void> {
-    const doc = this.documentStore.get(documentId);
-    if (!doc || !doc.rawBuffer) {
-      if (doc) {
-        doc.status = 'failed';
-        doc.errors.push('Original source file is unavailable; processing cannot start.');
-        doc.updatedAt = new Date().toISOString();
-        this.repository.saveJobState(doc, doc.retryCount + 1, 'failed', 0, doc.errors.at(-1));
-      }
+  private async poll(): Promise<void> {
+    while (this.activeJobs.size < this.maxConcurrency) {
+      const claim = this.repository.claimNextQueuedJob(this.workerId, LEASE_DURATION_MS);
+      if (!claim) break;
+      this.activeJobs.add(claim.documentId);
+      void this.processJob(claim.documentId, claim.attemptNumber)
+        .catch(error => {
+          console.error(`Queue worker failed outside document handling for ${claim.documentId}:`, error);
+        })
+        .finally(() => {
+          this.activeJobs.delete(claim.documentId);
+          this.schedulePoll(0);
+        });
+    }
+    this.schedulePoll();
+  }
+
+  private async processJob(documentId: string, attemptNumber: number): Promise<void> {
+    const doc = this.repository.getDocument(documentId);
+    if (!doc) {
+      console.error(`Claimed queue job ${documentId} has no corresponding document row.`);
       return;
     }
 
+    const rawBuffer = doc.storagePath ? this.sourceStorage.read(doc.storagePath) : undefined;
+    if (!rawBuffer) {
+      doc.status = 'failed';
+      doc.errors.push('Original source file is unavailable; processing cannot start.');
+      doc.updatedAt = new Date().toISOString();
+      this.repository.finishClaimedJob(
+        doc, attemptNumber, this.workerId, 'failed', 0, doc.errors[doc.errors.length - 1]
+      );
+      return;
+    }
+
+    let leaseLost = false;
+    const heartbeat = setInterval(() => {
+      try {
+        if (!this.repository.renewProcessingLease(documentId, this.workerId, LEASE_DURATION_MS)) {
+          leaseLost = true;
+          clearInterval(heartbeat);
+          console.error(`Worker lease for document ${documentId} was lost.`);
+        }
+      } catch (error) {
+        leaseLost = true;
+        clearInterval(heartbeat);
+        console.error(`Could not renew worker lease for document ${documentId}:`, error);
+      }
+    }, Math.floor(LEASE_DURATION_MS / 3));
+    heartbeat.unref?.();
+
     const startTime = performance.now();
+    doc.rawBuffer = rawBuffer;
     doc.status = 'processing';
     doc.updatedAt = new Date().toISOString();
-    const attemptNumber = doc.retryCount + 1;
 
     try {
-      this.repository.saveJobState(doc, attemptNumber, 'processing');
-      // 1. Task 1: Document Processing Pipeline
+      this.repository.saveDocument(doc);
       const parsed = await documentPipeline.processSingleFile({
         name: doc.sanitizedFilename,
         size: doc.fileSizeBytes,
         type: doc.mimeType,
-        data: doc.rawBuffer,
+        data: rawBuffer,
       });
 
       doc.rawText = parsed.rawText;
       doc.warnings.push(...parsed.warnings);
-      if (parsed.errors.length > 0) {
-        doc.errors.push(...parsed.errors);
-      }
+      doc.errors.push(...parsed.errors);
 
       if (parsed.status === 'failed') {
         doc.status = 'failed';
         doc.processingDurationMs = Math.round(performance.now() - startTime);
         doc.updatedAt = new Date().toISOString();
-        this.repository.saveJobState(
-          doc,
-          attemptNumber,
-          'failed',
-          doc.processingDurationMs,
-          doc.errors.join('; ')
-        );
-        return;
-      }
+      } else {
+        const extraction = await ExtractionFactory.createAdapter().extract(doc.rawText || '');
+        doc.extraction = extraction;
 
-      // 2. Task 2: AI Information Extraction
-      const adapter = ExtractionFactory.createAdapter();
-      const extraction = await adapter.extract(doc.rawText || '');
-      doc.extraction = extraction;
+        const ocrPages = parsed.pages?.filter(page => page.isOcr) || [];
+        if (ocrPages.length > 0) {
+          const calibratedConfidences = ocrPages
+            .map(page => page.confidence)
+            .filter((confidence): confidence is number => typeof confidence === 'number');
+          const ocrConfidence = calibratedConfidences.length > 0
+            ? Math.min(...calibratedConfidences)
+            : null;
+          for (const evidence of Object.values(extraction.evidence || {})) {
+            evidence.confidence = ocrConfidence === null
+              ? 0
+              : Math.min(evidence.confidence, ocrConfidence);
+          }
+          if (ocrConfidence === null) {
+            extraction.extraction_metadata.warnings.push(
+              'OCR provider did not return calibrated confidence; extracted fields require manual review.'
+            );
+          }
+        }
 
-      if (extraction.extraction_metadata?.warnings) {
         doc.warnings.push(...extraction.extraction_metadata.warnings);
+        const historicalInvoices = this.repository.getInvoiceExtractionsExcept(doc.id);
+        doc.validation = ValidationService.validateInvoice(extraction, historicalInvoices);
+        doc.status = doc.validation.status === 'valid' ? 'completed' : doc.validation.status;
+        doc.processingDurationMs = Math.round(performance.now() - startTime);
+        doc.updatedAt = new Date().toISOString();
       }
-
-      // 3. Task 3: Data Validation & Reconciliation
-      // Compare against other completed invoices in the store for duplicate detection
-      const existingInvoices = Array.from(this.documentStore.values())
-        .filter(d => d.id !== doc.id && d.extraction)
-        .map(d => d.extraction!);
-
-      const validation = ValidationService.validateInvoice(extraction, existingInvoices);
-      doc.validation = validation;
-
-      doc.status = validation.status === 'valid' ? 'completed' : validation.status;
-
-      doc.processingDurationMs = Math.round(performance.now() - startTime);
-      doc.updatedAt = new Date().toISOString();
-
-      // Persist the validation-derived document status to SQLite.
-      this.repository.saveJobState(
-        doc,
-        attemptNumber,
-        doc.status,
-        doc.processingDurationMs
-      );
-    } catch (workerErr) {
-      const msg = workerErr instanceof Error ? workerErr.message : String(workerErr);
+    } catch (workerError) {
+      const message = workerError instanceof Error ? workerError.message : String(workerError);
       doc.status = 'failed';
-      doc.errors.push(`Internal worker failure: ${msg}`);
+      doc.errors.push(`Internal worker failure: ${message}`);
       doc.processingDurationMs = Math.round(performance.now() - startTime);
       doc.updatedAt = new Date().toISOString();
+    } finally {
+      clearInterval(heartbeat);
+      doc.rawBuffer = undefined;
+    }
 
-      // Persist failure state to SQLite database
-      this.repository.saveJobState(
-        doc,
-        attemptNumber,
-        'failed',
-        doc.processingDurationMs,
-        msg
-      );
+    if (leaseLost) return;
+    const completed = this.repository.finishClaimedJob(
+      doc,
+      attemptNumber,
+      this.workerId,
+      doc.status,
+      doc.processingDurationMs,
+      doc.status === 'failed' ? doc.errors.join('; ') : undefined
+    );
+    if (!completed) {
+      console.error(`Worker ${this.workerId} could not commit document ${documentId}; its lease is no longer valid.`);
     }
   }
 
-  /**
-   * Returns current queue state metrics.
-   */
   public getStatusMetrics(): {
     queued: number;
     processing: number;
@@ -232,32 +226,15 @@ export class BackgroundJobQueue {
     failed: number;
     total: number;
   } {
-    let queued = 0;
-    let processing = 0;
-    let completed = 0;
-    let needs_review = 0;
-    let invalid = 0;
-    let failed = 0;
-
-    for (const doc of this.documentStore.values()) {
-      switch (doc.status) {
-        case 'queued': queued++; break;
-        case 'processing': processing++; break;
-        case 'completed': completed++; break;
-        case 'needs_review': needs_review++; break;
-        case 'invalid': invalid++; break;
-        case 'failed': failed++; break;
-      }
-    }
-
+    const counts = this.repository.getDocumentStatusCounts();
     return {
-      queued,
-      processing,
-      completed,
-      needs_review,
-      invalid,
-      failed,
-      total: this.documentStore.size,
+      queued: counts.queued || 0,
+      processing: counts.processing || 0,
+      completed: counts.completed || 0,
+      needs_review: counts.needs_review || 0,
+      invalid: counts.invalid || 0,
+      failed: counts.failed || 0,
+      total: Object.values(counts).reduce((sum, count) => sum + count, 0),
     };
   }
 }

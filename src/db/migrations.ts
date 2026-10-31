@@ -175,4 +175,72 @@ export function runMigrations(db: Database.Database): void {
       );
     })();
   }
+
+  const versionFive = db.prepare('SELECT version FROM schema_migrations WHERE version = 5').get();
+  if (!versionFive) {
+    db.transaction(() => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS processing_jobs (
+          document_id TEXT PRIMARY KEY,
+          status TEXT NOT NULL,
+          attempt_number INTEGER NOT NULL,
+          queued_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          error_message TEXT,
+          FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_processing_jobs_status_queued
+          ON processing_jobs(status, queued_at);
+
+        INSERT OR IGNORE INTO processing_jobs (
+          document_id, status, attempt_number, queued_at, updated_at, error_message
+        )
+        SELECT id, status, retry_count + 1, uploaded_at, updated_at, NULL
+        FROM documents
+        WHERE status IN ('queued', 'processing');
+
+        CREATE TABLE IF NOT EXISTS search_embeddings (
+          document_id TEXT NOT NULL,
+          model TEXT NOT NULL,
+          content_hash TEXT NOT NULL,
+          vector_json TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          PRIMARY KEY (document_id, model),
+          FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE
+        );
+      `);
+      db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (5, ?)').run(
+        new Date().toISOString()
+      );
+    })();
+  }
+
+  const versionSix = db.prepare('SELECT version FROM schema_migrations WHERE version = 6').get();
+  if (!versionSix) {
+    db.transaction(() => {
+    const jobColumns = new Set(
+      (db.pragma('table_info(processing_jobs)') as Array<{ name: string }>).map(column => column.name)
+    );
+    if (!jobColumns.has('lease_owner')) {
+      db.exec('ALTER TABLE processing_jobs ADD COLUMN lease_owner TEXT');
+    }
+    if (!jobColumns.has('lease_expires_at')) {
+      db.exec('ALTER TABLE processing_jobs ADD COLUMN lease_expires_at TEXT');
+    }
+    if (!jobColumns.has('heartbeat_at')) {
+      db.exec('ALTER TABLE processing_jobs ADD COLUMN heartbeat_at TEXT');
+    }
+
+    db.exec(`
+      UPDATE processing_jobs
+      SET status = 'queued', updated_at = datetime('now')
+      WHERE status = 'processing' AND lease_owner IS NULL;
+      CREATE INDEX IF NOT EXISTS idx_processing_jobs_lease
+        ON processing_jobs(status, lease_expires_at, queued_at);
+    `);
+    db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (6, ?)').run(
+      new Date().toISOString()
+    );
+    })();
+  }
 }

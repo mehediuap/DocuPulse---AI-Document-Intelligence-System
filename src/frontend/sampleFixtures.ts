@@ -11,13 +11,8 @@ import {
   createLegacyXls,
 } from '../services/document/tests.ts';
 
-function uint8ArrayToBase64(bytes: Uint8Array): string {
-  let binary = '';
-  const len = bytes.byteLength;
-  for (let i = 0; i < len; i++) {
-    binary += String.fromCharCode(bytes[i]);
-  }
-  return btoa(binary);
+function createFixtureFile(name: string, type: string, bytes: Uint8Array): File {
+  return new File([bytes.slice().buffer as ArrayBuffer], name, { type });
 }
 
 export interface DemoFixture {
@@ -25,7 +20,7 @@ export interface DemoFixture {
   label: string;
   description: string;
   badge: string;
-  generate: () => { name: string; size: number; type: string; data: string };
+  generate: () => File;
 }
 
 export const DEMO_FIXTURES: DemoFixture[] = [
@@ -36,12 +31,7 @@ export const DEMO_FIXTURES: DemoFixture[] = [
     badge: 'Expected: Completed',
     generate: () => {
       const bytes = createDigitalPdfBytes('INV-2026-8801', 1);
-      return {
-        name: 'invoice_compliant_8801.pdf',
-        size: bytes.length,
-        type: 'application/pdf',
-        data: `data:application/pdf;base64,${uint8ArrayToBase64(bytes)}`,
-      };
+      return createFixtureFile('invoice_compliant_8801.pdf', 'application/pdf', bytes);
     },
   },
   {
@@ -69,12 +59,7 @@ export const DEMO_FIXTURES: DemoFixture[] = [
         `endstream\nendobj\nxref\n0 5\n0000000000 65535 f \n` +
         `trailer\n<< /Size 5 /Root 1 0 R >>\nstartxref\n500\n%%EOF`;
       const bytes = new TextEncoder().encode(text);
-      return {
-        name: 'invoice_math_discrepancy.pdf',
-        size: bytes.length,
-        type: 'application/pdf',
-        data: `data:application/pdf;base64,${uint8ArrayToBase64(bytes)}`,
-      };
+      return createFixtureFile('invoice_math_discrepancy.pdf', 'application/pdf', bytes);
     },
   },
   {
@@ -100,12 +85,7 @@ export const DEMO_FIXTURES: DemoFixture[] = [
         `endstream\nendobj\nxref\n0 5\n0000000000 65535 f \n` +
         `trailer\n<< /Size 5 /Root 1 0 R >>\nstartxref\n500\n%%EOF`;
       const bytes = new TextEncoder().encode(text);
-      return {
-        name: 'invoice_duplicate_suspect.pdf',
-        size: bytes.length,
-        type: 'application/pdf',
-        data: `data:application/pdf;base64,${uint8ArrayToBase64(bytes)}`,
-      };
+      return createFixtureFile('invoice_duplicate_suspect.pdf', 'application/pdf', bytes);
     },
   },
   {
@@ -115,12 +95,7 @@ export const DEMO_FIXTURES: DemoFixture[] = [
     badge: 'OCR Route',
     generate: () => {
       const bytes = createScannedPdfBytes();
-      return {
-        name: 'scanned_logistics_receipt.pdf',
-        size: bytes.length,
-        type: 'application/pdf',
-        data: `data:application/pdf;base64,${uint8ArrayToBase64(bytes)}`,
-      };
+      return createFixtureFile('scanned_logistics_receipt.pdf', 'application/pdf', bytes);
     },
   },
   {
@@ -130,12 +105,11 @@ export const DEMO_FIXTURES: DemoFixture[] = [
     badge: 'Spreadsheet',
     generate: () => {
       const bytes = createMultiSheetXlsx();
-      return {
-        name: 'procurement_ledger_2026.xlsx',
-        size: bytes.length,
-        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        data: `data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,${uint8ArrayToBase64(bytes)}`,
-      };
+      return createFixtureFile(
+        'procurement_ledger_2026.xlsx',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        bytes
+      );
     },
   },
   {
@@ -150,12 +124,7 @@ export const DEMO_FIXTURES: DemoFixture[] = [
         `"INV-CSV-401";"Helix Cloud Services";"Egress Bandwidth Tier 1";1;120.50;120.50\n` +
         `"INV-CSV-401";"Helix Cloud Services";"Direct Connect Gateway";1;250.00;250.00`;
       const bytes = new TextEncoder().encode(csv);
-      return {
-        name: 'helix_cloud_billing.csv',
-        size: bytes.length,
-        type: 'text/csv',
-        data: `data:text/csv;base64,${uint8ArrayToBase64(bytes)}`,
-      };
+      return createFixtureFile('helix_cloud_billing.csv', 'text/csv', bytes);
     },
   },
   {
@@ -165,12 +134,7 @@ export const DEMO_FIXTURES: DemoFixture[] = [
     badge: 'Failure Diagnostic',
     generate: () => {
       const bytes = new TextEncoder().encode('%PDF-CORRUPTED_STREAM_HEADER_FAULT_0x00FF');
-      return {
-        name: 'corrupted_transmission.pdf',
-        size: bytes.length,
-        type: 'application/pdf',
-        data: `data:application/pdf;base64,${uint8ArrayToBase64(bytes)}`,
-      };
+      return createFixtureFile('corrupted_transmission.pdf', 'application/pdf', bytes);
     },
   },
 ];

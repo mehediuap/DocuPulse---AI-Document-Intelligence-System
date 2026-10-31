@@ -513,21 +513,26 @@ export class GeminiExtractionAdapter implements ExtractionAdapter {
 
     // Helper for executing generateContent with timeout
     const executeCall = async (modelToUse: string, msLimit: number) => {
+      let timeoutId: ReturnType<typeof setTimeout> | undefined;
       const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error(`Extraction timed out after ${msLimit}ms`)), msLimit);
+        timeoutId = setTimeout(() => reject(new Error(`Extraction timed out after ${msLimit}ms`)), msLimit);
       });
 
-      const callPromise = this.ai!.models.generateContent({
-        model: modelToUse,
-        contents: prompt,
-        config: {
-          systemInstruction: INVOICE_EXTRACTION_SYSTEM_INSTRUCTION,
-          responseMimeType: 'application/json',
-          temperature: 0.1,
-        },
-      });
+      try {
+        const callPromise = this.ai!.models.generateContent({
+          model: modelToUse,
+          contents: prompt,
+          config: {
+            systemInstruction: INVOICE_EXTRACTION_SYSTEM_INSTRUCTION,
+            responseMimeType: 'application/json',
+            temperature: 0.1,
+          },
+        });
 
-      return await Promise.race([callPromise, timeoutPromise]);
+        return await Promise.race([callPromise, timeoutPromise]);
+      } finally {
+        if (timeoutId !== undefined) clearTimeout(timeoutId);
+      }
     };
 
     try {
@@ -572,7 +577,7 @@ export class GeminiExtractionAdapter implements ExtractionAdapter {
         warnings: parsed.extraction_metadata?.warnings || [],
       };
 
-      const validated = validateInvoiceExtraction(parsed, 'gemini_llm');
+      const validated = validateInvoiceExtraction(parsed, 'gemini_llm', documentText);
       return validated.data;
     } catch (err) {
       const duration = Math.round(performance.now() - startTime);

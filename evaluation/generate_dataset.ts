@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as XLSX from 'xlsx';
+import sharp from 'sharp';
 
 const DATASET_DIR = path.resolve('evaluation/dataset');
 
@@ -73,7 +74,7 @@ export function createDigitalPdf(
   return Buffer.from(content, 'utf-8');
 }
 
-export function createPngReceipt(
+export async function createPngReceipt(
   invoiceNo: string,
   date: string,
   supplier: string,
@@ -83,32 +84,36 @@ export function createPngReceipt(
   total: number,
   currency: string,
   items: Array<{ desc: string; qty: number; unitPrice: number; amount: number }>
-): Buffer {
-  // Valid PNG Header + IHDR Chunk + embedded printable ASCII stream for OCR engine
-  const pngSignature = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
-  const ihdrChunk = [
-    0x00, 0x00, 0x00, 0x0D, // Length 13
-    0x49, 0x48, 0x44, 0x52, // 'IHDR'
-    0x00, 0x00, 0x03, 0x20, // Width 800
-    0x00, 0x00, 0x04, 0xB0, // Height 1200
-    0x08, 0x02, 0x00, 0x00, 0x00, // 8-bit truecolor
-    0x00, 0x00, 0x00, 0x00  // CRC placeholder
+): Promise<Buffer> {
+  const xmlEscape = (value: string) => value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+  const lines = [
+    `Invoice Number: ${invoiceNo}`,
+    `Date: ${date}`,
+    `Supplier: ${supplier}`,
+    `Customer: ${customer}`,
+    `Currency: ${currency}`,
+    `Subtotal: $${subtotal.toFixed(2)}`,
+    `Tax: $${tax.toFixed(2)}`,
+    `Total: $${total.toFixed(2)}`,
+    'Description | Quantity | Unit Price | Amount',
+    ...items.map(item =>
+      `${item.desc} | ${item.qty} | $${item.unitPrice.toFixed(2)} | $${item.amount.toFixed(2)}`
+    ),
   ];
-
-  let textPayload = `\nInvoice: ${invoiceNo}\nDate: ${date}\nSupplier: ${supplier}\nCustomer: ${customer}\nSubtotal: ${subtotal.toFixed(2)}\nTax: ${tax.toFixed(2)}\nTotal: ${total.toFixed(2)} ${currency}\n`;
-  for (const it of items) {
-    textPayload += `${it.desc} ${it.qty} ${it.unitPrice.toFixed(2)} ${it.amount.toFixed(2)}\n`;
-  }
-
-  const iendChunk = [0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82];
-  const payloadBytes = Buffer.from(textPayload, 'utf-8');
-
-  return Buffer.concat([
-    Buffer.from(pngSignature),
-    Buffer.from(ihdrChunk),
-    payloadBytes,
-    Buffer.from(iendChunk)
-  ]);
+  const height = 100 + lines.length * 82;
+  const text = lines.map((line, index) =>
+    `<text x="72" y="${112 + index * 82}" font-family="Arial, sans-serif" font-size="42" fill="#111">${xmlEscape(line)}</text>`
+  ).join('');
+  const svg = Buffer.from(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="${height}"><rect width="100%" height="100%" fill="white"/>${text}</svg>`,
+    'utf-8'
+  );
+  return sharp(svg).png().toBuffer();
 }
 
 export function createExcelInvoice(
@@ -153,7 +158,7 @@ export function createExcelInvoice(
   return Buffer.isBuffer(buf) ? buf : Buffer.from(buf);
 }
 
-export function generateDatasetFiles() {
+export async function generateDatasetFiles(): Promise<void> {
   if (!fs.existsSync(DATASET_DIR)) {
     fs.mkdirSync(DATASET_DIR, { recursive: true });
   }
@@ -232,7 +237,7 @@ export function generateDatasetFiles() {
   // 5. DOC-EVAL-005 (PNG receipt)
   fs.writeFileSync(
     path.join(DATASET_DIR, 'INV-2026-005-BeaconSupplies.png'),
-    createPngReceipt(
+    await createPngReceipt(
       'INV-2026-005',
       '2026-03-22',
       'Beacon Office Supplies',
@@ -258,7 +263,7 @@ export function generateDatasetFiles() {
   ].join('\n');
   fs.writeFileSync(path.join(DATASET_DIR, 'INV-2026-006-EuroScale.csv'), Buffer.from(csv6, 'utf-8'));
 
-  // 7. DOC-EVAL-007 (Incomplete PDF - missing customer & subtotal)
+  // 7. DOC-EVAL-007 (Missing critical subtotal; validation routes it to invalid)
   fs.writeFileSync(
     path.join(DATASET_DIR, 'INV-2026-007-QuickPrint.pdf'),
     createDigitalPdf(
@@ -269,7 +274,7 @@ export function generateDatasetFiles() {
       null, // missing subtotal
       15.00,
       165.00,
-      '', // missing currency triggers MISSING_CURRENCY warning (needs_review)
+      '', // missing currency is a warning; missing subtotal is a critical error
       [
         { desc: 'Express Document Binding', qty: 1, unitPrice: 150.00, amount: 150.00 }
       ],
@@ -314,5 +319,8 @@ export function generateDatasetFiles() {
 }
 
 if (import.meta.url.endsWith(process.argv[1]) || process.argv[1]?.includes('generate_dataset')) {
-  generateDatasetFiles();
+  generateDatasetFiles().catch(error => {
+    console.error('Dataset generation failed:', error);
+    process.exitCode = 1;
+  });
 }

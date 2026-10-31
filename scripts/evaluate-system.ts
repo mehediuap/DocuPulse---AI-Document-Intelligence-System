@@ -50,7 +50,8 @@ interface DocumentEvaluationResult {
   pipeline_status: string;
   expected_validation_status: string;
   actual_validation_status: string | null;
-  status_concordance: boolean;
+  status_concordance: boolean | null;
+  ocr_text_available: boolean | null;
   processing_time_ms: number;
   field_evaluations: Record<string, FieldMatchEvaluation>;
   field_accuracy_percentage: number;
@@ -136,6 +137,7 @@ export async function runEvaluationBenchmark(): Promise<void> {
     let actualStatus: string | null = null;
     const warnings: string[] = [...(processed.warnings || [])];
     const errors: string[] = [...(processed.errors || [])];
+    const ocrUnavailable = processed.rawText.includes('[OCR TEXT UNAVAILABLE]');
 
     if (processed.status !== 'failed' && !item.is_corrupt) {
       try {
@@ -217,7 +219,9 @@ export async function runEvaluationBenchmark(): Promise<void> {
     }
 
     const accuracyPct = applicableFieldCount > 0 ? (correctFieldCount / applicableFieldCount) * 100 : (item.is_corrupt && actualStatus === 'failed' ? 100 : 0);
-    const statusConcordance = actualStatus === item.expected_validation_status;
+    const statusConcordance = ocrUnavailable
+      ? null
+      : actualStatus === item.expected_validation_status;
 
     results.push({
       id: item.id,
@@ -227,6 +231,7 @@ export async function runEvaluationBenchmark(): Promise<void> {
       pipeline_status: processed.status,
       expected_validation_status: item.expected_validation_status,
       actual_validation_status: actualStatus,
+      ocr_text_available: item.file_type === 'image' ? !ocrUnavailable : null,
       status_concordance: statusConcordance,
       processing_time_ms: durationMs,
       field_evaluations: fieldEvaluations,
@@ -235,8 +240,11 @@ export async function runEvaluationBenchmark(): Promise<void> {
       errors,
     });
 
-    const statusMark = statusConcordance ? '✓' : '✗';
-    console.log(`[${statusMark}] ${item.id} (${item.filename}) - Status: ${actualStatus} (Expected: ${item.expected_validation_status}) | Acc: ${accuracyPct.toFixed(1)}% | Latency: ${durationMs}ms`);
+    const statusMark = statusConcordance === null ? '?' : statusConcordance ? '✓' : '✗';
+    const statusDescription = statusConcordance === null
+      ? `Status: ${actualStatus} (OCR unavailable; expected ${item.expected_validation_status})`
+      : `Status: ${actualStatus} (Expected: ${item.expected_validation_status})`;
+    console.log(`[${statusMark}] ${item.id} (${item.filename}) - ${statusDescription} | Acc: ${accuracyPct.toFixed(1)}% | Latency: ${durationMs}ms`);
   }
 
   // Aggregate Metrics Calculations
@@ -248,9 +256,14 @@ export async function runEvaluationBenchmark(): Promise<void> {
   const medianDuration = durations[Math.floor(durations.length / 2)] || 0;
   const p95Duration = durations[Math.floor(durations.length * 0.95)] || maxDuration;
 
-  const successfulRuns = results.filter(r => r.status_concordance).length;
+  const evaluatedStatuses = results.filter(r => r.status_concordance !== null);
+  const successfulRuns = evaluatedStatuses.filter(r => r.status_concordance === true).length;
+  const totalEvaluatedStatuses = evaluatedStatuses.length;
+  const inconclusiveStatuses = results.length - totalEvaluatedStatuses;
   const totalRuns = results.length;
-  const concordanceRate = Math.round((successfulRuns / totalRuns) * 1000) / 10;
+  const concordanceRate = totalEvaluatedStatuses > 0
+    ? Math.round((successfulRuns / totalEvaluatedStatuses) * 1000) / 10
+    : 0;
 
   // Documents successfully ingested and handled according to specification
   const handledDocuments = results.filter(r => {
@@ -302,13 +315,19 @@ export async function runEvaluationBenchmark(): Promise<void> {
       document_success_rate_percentage: documentSuccessRate,
       document_failure_rate_percentage: documentFailureRate,
       validation_concordance_rate_percentage: concordanceRate,
+      validation_concordance_evaluated_documents: totalEvaluatedStatuses,
+      validation_concordance_inconclusive_documents: inconclusiveStatuses,
       overall_field_accuracy_percentage: overallFieldAccuracy,
       ocr_ground_truth_field_accuracy: {
         accuracy_percentage: ocrFieldAccuracy,
         exact_matches: ocrFieldStats.correct,
         fields_evaluated: ocrFieldStats.total,
         documents_evaluated: results.filter(result => result.file_type === 'image' && !result.is_corrupt).length,
-        provider_configured: adapterMode === 'gemini',
+        provider_configured: (() => {
+          const provider = process.env.OCR_PROVIDER?.trim().toLowerCase() ||
+            (adapterMode === 'mock' ? 'mock' : 'auto');
+          return provider !== 'mock' && (provider !== 'gemini' || hasKey || hasVertexConfig);
+        })(),
       },
     },
     latency_metrics_ms: {
@@ -336,7 +355,7 @@ export async function runEvaluationBenchmark(): Promise<void> {
   console.log(' Empirical Benchmark Results Summary');
   console.log('================================================================');
   console.log(`Document Ingestion Success Rate: ${documentSuccessRate}%`);
-  console.log(`Validation Status Concordance:   ${concordanceRate}%`);
+  console.log(`Validation Status Concordance:   ${concordanceRate}% (${successfulRuns}/${totalEvaluatedStatuses}; ${inconclusiveStatuses} inconclusive)`);
   console.log(`Overall Field Extraction Accuracy: ${overallFieldAccuracy}%`);
   console.log(`OCR Ground-Truth Field Accuracy:    ${ocrFieldAccuracy === null ? 'not measured' : `${ocrFieldAccuracy}% (${ocrFieldStats.correct}/${ocrFieldStats.total}; provider ${adapterMode === 'gemini' ? 'configured' : 'unconfigured'})`}`);
   console.log(`Processing Latency (Mean):        ${meanDuration} ms (min: ${minDuration}ms, max: ${maxDuration}ms, p95: ${p95Duration}ms)`);

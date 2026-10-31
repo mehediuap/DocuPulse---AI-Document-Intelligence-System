@@ -8,7 +8,7 @@ import { DatabaseClient } from '../../db/database.ts';
 import { DocumentRepository } from '../../db/repository.ts';
 import { runMigrations } from '../../db/migrations.ts';
 import { DocumentRecord } from '../api/types.ts';
-import { semanticSearchService } from '../search/semanticSearch.ts';
+import { SemanticSearchService } from '../search/semanticSearch.ts';
 
 export interface TestRunResult {
   name: string;
@@ -67,6 +67,20 @@ export async function runDatabaseAndSearchTests(): Promise<{
     ).all() as Array<{ name: string }>).map(trigger => trigger.name);
     if (!triggerNames.includes('audit_trail_no_update')) throw new Error('Missing append-only audit update trigger');
     if (!triggerNames.includes('audit_trail_no_delete')) throw new Error('Missing append-only audit delete trigger');
+    const versionFive = testDb.prepare(
+      'SELECT version FROM schema_migrations WHERE version = 5'
+    ).get() as { version: number } | undefined;
+    if (versionFive?.version !== 5) throw new Error('Persistent job and vector-index migration was not applied');
+    const versionSix = testDb.prepare(
+      'SELECT version FROM schema_migrations WHERE version = 6'
+    ).get() as { version: number } | undefined;
+    if (versionSix?.version !== 6) throw new Error('Processing job lease migration was not applied');
+    const jobColumns = new Set(
+      (testDb.pragma('table_info(processing_jobs)') as Array<{ name: string }>).map(column => column.name)
+    );
+    if (!jobColumns.has('lease_owner') || !jobColumns.has('lease_expires_at') || !jobColumns.has('heartbeat_at')) {
+      throw new Error('Processing job lease columns are missing.');
+    }
   });
 
   // 2. Full document persistence & retrieval
@@ -137,6 +151,38 @@ export async function runDatabaseAndSearchTests(): Promise<{
     if (retrieved.sanitizedFilename !== 'q3_industrial_procurement.pdf') throw new Error('Filename mismatch');
     if (retrieved.extraction?.invoice_number !== 'INV-2026-8800') throw new Error('Extraction invoice_number mismatch');
     if (retrieved.validation?.status !== 'valid') throw new Error('Validation status mismatch');
+  });
+
+  await test('Queue leases prevent concurrent claims and recover expired workers safely', async () => {
+    const doc = repo.getDocument('doc_test_persistence_01');
+    if (!doc) throw new Error('Lease test document was not persisted.');
+    doc.status = 'queued';
+    repo.saveJobState(doc, 4, 'queued');
+
+    const firstClaim = repo.claimNextQueuedJob('lease-worker-a', 60_000);
+    if (!firstClaim || firstClaim.documentId !== doc.id) throw new Error('First worker did not claim queued job.');
+    if (repo.claimNextQueuedJob('lease-worker-b', 60_000) !== null) {
+      throw new Error('A second worker claimed a job with an active lease.');
+    }
+    if (!repo.renewProcessingLease(doc.id, 'lease-worker-a', 60_000)) {
+      throw new Error('Active worker lease could not be renewed.');
+    }
+
+    testDb.prepare(`
+      UPDATE processing_jobs SET lease_expires_at = '2000-01-01T00:00:00.000Z'
+      WHERE document_id = ?
+    `).run(doc.id);
+    const recoveredClaim = repo.claimNextQueuedJob('lease-worker-b', 60_000);
+    if (!recoveredClaim || recoveredClaim.documentId !== doc.id) {
+      throw new Error('Expired job lease was not recovered.');
+    }
+    doc.status = 'completed';
+    if (repo.finishClaimedJob(doc, firstClaim.attemptNumber, 'lease-worker-a', 'completed')) {
+      throw new Error('A stale worker committed after its lease was replaced.');
+    }
+    if (!repo.finishClaimedJob(doc, recoveredClaim.attemptNumber, 'lease-worker-b', 'completed')) {
+      throw new Error('Current lease owner could not commit the completed job.');
+    }
   });
 
   // 3. Decimal-safe integer cents storage
@@ -229,7 +275,8 @@ export async function runDatabaseAndSearchTests(): Promise<{
     repo.recordProcessingHistory('doc_test_persistence_01', 1, 'queued');
     repo.recordProcessingHistory('doc_test_persistence_01', 1, 'completed', 450);
 
-    const history = repo.getProcessingHistory('doc_test_persistence_01');
+    const history = repo.getProcessingHistory('doc_test_persistence_01')
+      .filter(attempt => attempt.attemptNumber === 1);
     if (history.length !== 2) throw new Error(`Expected 2 history rows, got ${history.length}`);
     if (history[1].status !== 'completed') throw new Error('History status mismatch');
     if (history[1].durationMs !== 450) throw new Error('History duration mismatch');
@@ -322,7 +369,11 @@ export async function runDatabaseAndSearchTests(): Promise<{
       warnings: [],
     };
 
-    const searchRes = await semanticSearchService.search('GPU graphics accelerator computing', [mockDoc1, mockDoc2]);
+    repo.saveDocument(mockDoc1);
+    repo.saveDocument(mockDoc2);
+    const searchService = new SemanticSearchService(repo);
+    const query = 'GPU graphics accelerator computing';
+    const searchRes = await searchService.search(query, [mockDoc1, mockDoc2]);
     if (searchRes.results.length === 0) {
       throw new Error('Expected at least 1 match for GPU search');
     }
@@ -338,6 +389,15 @@ export async function runDatabaseAndSearchTests(): Promise<{
     if ('storagePath' in searchRes.results[0].document) {
       throw new Error('Semantic search result leaked the internal storage path');
     }
+    const firstSearchVectors = testDb.prepare(
+      "SELECT COUNT(*) AS count FROM search_embeddings WHERE document_id IN ('doc_sem_1', 'doc_sem_2')"
+    ).get() as { count: number };
+    if (firstSearchVectors.count !== 2) throw new Error('Search did not persist vectors for both indexed documents.');
+    await new SemanticSearchService(repo).search(query, [mockDoc1, mockDoc2]);
+    const secondSearchVectors = testDb.prepare(
+      "SELECT COUNT(*) AS count FROM search_embeddings WHERE document_id IN ('doc_sem_1', 'doc_sem_2')"
+    ).get() as { count: number };
+    if (secondSearchVectors.count !== 2) throw new Error('Repeat search did not reuse the persistent vector index.');
   });
 
   const passed = results.filter(r => r.passed).length;

@@ -42,6 +42,18 @@ export class ValidationService {
     const issues: ValidationIssue[] = [];
     const manualReviewReasons: string[] = [];
 
+    for (const schemaIssue of invoice.extraction_metadata.schemaIssues || []) {
+      if (schemaIssue.severity !== 'error') continue;
+      issues.push({
+        code: 'INVALID_NUMERIC_VALUE',
+        severity: 'error',
+        field: schemaIssue.field,
+        message: schemaIssue.message,
+        manualReviewReason: `Invalid extracted value for "${schemaIssue.field}".`,
+      });
+      manualReviewReasons.push(`Invalid extracted value for ${schemaIssue.field}`);
+    }
+
     // 1. Missing Required Fields Check
     if (!invoice.invoice_number) {
       issues.push({
@@ -76,6 +88,17 @@ export class ValidationService {
       manualReviewReasons.push('Supplier name missing');
     }
 
+    if (!invoice.customer_name) {
+      issues.push({
+        code: 'MISSING_REQUIRED_FIELD',
+        severity: 'warning',
+        field: 'customer_name',
+        message: 'Required field "customer_name" is missing or unparseable.',
+        manualReviewReason: 'The invoice recipient must be verified before approval.',
+      });
+      manualReviewReasons.push('Customer name missing');
+    }
+
     if (invoice.total === null) {
       issues.push({
         code: 'MISSING_REQUIRED_FIELD',
@@ -85,6 +108,19 @@ export class ValidationService {
         manualReviewReason: 'Total payable amount cannot be determined.',
       });
       manualReviewReasons.push('Total amount missing');
+    }
+
+    for (const field of ['subtotal', 'tax'] as const) {
+      if (invoice[field] === null) {
+        issues.push({
+          code: 'MISSING_CRITICAL_AMOUNT',
+          severity: 'error',
+          field,
+          message: `Critical financial field "${field}" is missing or could not be parsed.`,
+          manualReviewReason: `A verified ${field} amount is required before this invoice can be approved.`,
+        });
+        manualReviewReasons.push(`${field} amount missing`);
+      }
     }
 
     // 2. Currency Validation

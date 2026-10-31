@@ -11,7 +11,7 @@ export interface PageContent {
   text: string;
   lineCount: number;
   isOcr?: boolean;
-  confidence?: number;
+  confidence?: number | null;
   lines?: string[];
 }
 

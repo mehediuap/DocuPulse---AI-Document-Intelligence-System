@@ -5,7 +5,7 @@
 
 import { ValidationService } from './validationService.ts';
 import { CrossVerificationService } from './crossVerification.ts';
-import { InvoiceExtractionResult } from '../extraction/schemas.ts';
+import { InvoiceExtractionResult, validateInvoiceExtraction } from '../extraction/schemas.ts';
 
 export interface TestRunResult {
   name: string;
@@ -103,6 +103,46 @@ export async function runDataValidationTests(): Promise<{
       throw new Error('Missing supplier_name not captured as a review warning');
     }
     if (resSup.status !== 'needs_review') throw new Error(`Missing supplier should require review, got ${resSup.status}`);
+
+    const missingCustomer = createBaseInvoice({ customer_name: null });
+    const resCustomer = ValidationService.validateInvoice(missingCustomer);
+    if (!resCustomer.warnings.some(issue =>
+      issue.code === 'MISSING_REQUIRED_FIELD' && issue.field === 'customer_name'
+    )) {
+      throw new Error('Missing customer_name not captured as a review warning');
+    }
+    if (resCustomer.status !== 'needs_review') {
+      throw new Error(`Missing customer should require review, got ${resCustomer.status}`);
+    }
+  });
+
+  await test('Missing critical subtotal or tax amounts are invalid', async () => {
+    const missingSubtotal = ValidationService.validateInvoice(createBaseInvoice({ subtotal: null }));
+    if (missingSubtotal.status !== 'invalid' ||
+      !missingSubtotal.errors.some(issue => issue.code === 'MISSING_CRITICAL_AMOUNT' && issue.field === 'subtotal')) {
+      throw new Error('A missing subtotal must be a validation error.');
+    }
+
+    const missingTax = ValidationService.validateInvoice(createBaseInvoice({ tax: null }));
+    if (missingTax.status !== 'invalid' ||
+      !missingTax.errors.some(issue => issue.code === 'MISSING_CRITICAL_AMOUNT' && issue.field === 'tax')) {
+      throw new Error('A missing tax amount must be a validation error.');
+    }
+  });
+
+  await test('Malformed extracted amounts remain validation errors after normalization', async () => {
+    const extraction = validateInvoiceExtraction({
+      subtotal: '100.00',
+      tax: '10.00',
+      total: 'not-an-amount',
+    });
+    const validation = ValidationService.validateInvoice(extraction.data);
+
+    if (extraction.isValid) throw new Error('Malformed total should fail extraction schema validation.');
+    if (validation.status !== 'invalid' ||
+      !validation.errors.some(issue => issue.code === 'INVALID_NUMERIC_VALUE' && issue.field === 'total')) {
+      throw new Error('Malformed total was downgraded after normalization.');
+    }
   });
 
   // 3. Duplicate invoice candidate detection

@@ -21,9 +21,7 @@ async function startServer() {
   const PORT = parseInt(process.env.PORT || '3000', 10);
   const isProd = process.env.NODE_ENV === 'production';
 
-  // Body parsing with 35MB limits for document payloads
-  app.use(express.json({ limit: '35mb' }));
-  app.use(express.urlencoded({ extended: true, limit: '35mb' }));
+  app.use(express.json({ limit: '1mb' }));
 
   // Mount API router
   app.use(apiRouter);
@@ -60,9 +58,9 @@ async function startServer() {
   app.use(safeErrorHandler);
 
   server.listen(PORT, '0.0.0.0', () => {
-    console.log(`[DocuPulse Server] Running on http://0.0.0.0:${PORT}`);
-    console.log(`[DocuPulse Server] Health check: http://0.0.0.0:${PORT}/health`);
-    console.log(`[DocuPulse Server] OpenAPI schema: http://0.0.0.0:${PORT}/api/v1/openapi.json`);
+    console.log(`[DocuPulse Server] Running on http://localhost:${PORT}`);
+    console.log(`[DocuPulse Server] Health check: http://localhost:${PORT}/health`);
+    console.log(`[DocuPulse Server] OpenAPI schema: http://localhost:${PORT}/api/v1/openapi.json`);
   });
 }
 

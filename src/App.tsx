@@ -21,9 +21,10 @@ import {
   ExternalLink,
   Sparkles,
   ArrowRightLeft,
+  KeyRound,
 } from 'lucide-react';
 
-import { api, FrontendApiError } from './frontend/api.ts';
+import { api, FrontendApiError, getApiAuthToken, setApiAuthToken } from './frontend/api.ts';
 import {
   DocumentMetadataResponse,
   DocumentResultResponse,
@@ -44,6 +45,7 @@ type NavigationTab = 'dashboard' | 'semantic' | 'crossverify' | 'upload' | 'veri
 
 export default function App() {
   const [currentTab, setCurrentTab] = useState<NavigationTab>('dashboard');
+  const [apiToken, setApiToken] = useState<string>(() => getApiAuthToken());
 
   // Documents state
   const [documents, setDocuments] = useState<DocumentMetadataResponse[]>([]);
@@ -201,7 +203,7 @@ export default function App() {
 
   // Handle Multi-file Upload
   const handleUploadFiles = async (
-    files: Array<{ name: string; size: number; type: string; data: string }>
+    files: File[]
   ) => {
     setIsUploading(true);
     try {
@@ -296,7 +298,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50/70 via-slate-50 to-indigo-50/30 text-slate-900 flex flex-col font-sans">
+    <div className="min-h-screen bg-linear-to-br from-slate-50/70 via-slate-50 to-indigo-50/30 text-slate-900 flex flex-col font-sans">
       {/* Top Bar Navigation */}
       <header className="sticky top-0 z-30 flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-b border-slate-200/80 bg-white/90 px-4 py-3 shadow-xs backdrop-blur-xl sm:px-6 lg:flex-nowrap lg:px-8">
         <div className="flex items-center gap-3">
@@ -390,6 +392,32 @@ export default function App() {
 
         {/* Right CTA */}
         <div className="ml-auto flex items-center gap-2">
+          <details className="relative">
+            <summary className="flex cursor-pointer list-none items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-50">
+              <KeyRound className="h-3.5 w-3.5" />
+              API token
+            </summary>
+            <div className="absolute right-0 top-full z-40 mt-2 w-72 rounded-xl border border-slate-200 bg-white p-3 shadow-lg">
+              <label htmlFor="api-auth-token" className="text-xs font-semibold text-slate-700">
+                Bearer token
+              </label>
+              <input
+                id="api-auth-token"
+                type="password"
+                autoComplete="off"
+                value={apiToken}
+                onChange={event => {
+                  setApiToken(event.target.value);
+                  setApiAuthToken(event.target.value);
+                }}
+                placeholder="Enter configured API token"
+                className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-xs outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+              />
+              <p className="mt-2 text-[10px] leading-4 text-slate-500">
+                Stored in this browser session only. Requests use the Authorization: Bearer header.
+              </p>
+            </div>
+          </details>
           <button
             onClick={() => setCurrentTab('upload')}
             className="flex items-center gap-2 whitespace-nowrap rounded-xl bg-gradient-to-r from-indigo-600 via-blue-600 to-indigo-700 px-4 py-2.5 text-xs font-semibold text-white shadow-md shadow-indigo-200 transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-indigo-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2"

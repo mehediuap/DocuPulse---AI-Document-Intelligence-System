@@ -126,11 +126,11 @@
       "subtotal": null,
       "tax": 15.00,
       "total": 165.00,
-      "currency": "USD",
+      "currency": null,
       "line_items_count": 1
     },
-    "expected_validation_status": "needs_review",
-    "description": "Incomplete invoice intentionally omitting customer and subtotal to test strict null handling"
+    "expected_validation_status": "invalid",
+    "description": "Incomplete invoice missing critical subtotal, customer, and currency; missing critical amounts route to invalid"
   },
   {
     "id": "DOC-EVAL-008",

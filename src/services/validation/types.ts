@@ -8,6 +8,7 @@ export type IssueSeverity = 'error' | 'warning' | 'info';
 
 export type ValidationIssueCode =
   | 'MISSING_REQUIRED_FIELD'
+  | 'MISSING_CRITICAL_AMOUNT'
   | 'FIELD_UNCERTAIN'
   | 'INVALID_DATE_FORMAT'
   | 'FUTURE_DATE_WARNING'
