@@ -116,6 +116,56 @@ export async function createPngReceipt(
   return sharp(svg).png().toBuffer();
 }
 
+function createScannedPdf(jpeg: Buffer, width: number, height: number): Buffer {
+  const content = Buffer.from(`q ${width} 0 0 ${height} 0 0 cm /Im1 Do Q`, 'utf8');
+  const objects = [
+    Buffer.from('<< /Type /Catalog /Pages 2 0 R >>', 'utf8'),
+    Buffer.from('<< /Type /Pages /Kids [3 0 R] /Count 1 >>', 'utf8'),
+    Buffer.from(
+      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${width} ${height}] ` +
+      '/Resources << /XObject << /Im1 5 0 R >> >> /Contents 4 0 R >>',
+      'utf8'
+    ),
+    Buffer.concat([
+      Buffer.from(`<< /Length ${content.length} >>\nstream\n`, 'utf8'),
+      content,
+      Buffer.from('\nendstream', 'utf8'),
+    ]),
+    Buffer.concat([
+      Buffer.from(
+        `<< /Type /XObject /Subtype /Image /Width ${width} /Height ${height} ` +
+        `/ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${jpeg.length} >>\nstream\n`,
+        'utf8'
+      ),
+      jpeg,
+      Buffer.from('\nendstream', 'utf8'),
+    ]),
+  ];
+  const chunks = [Buffer.from('%PDF-1.7\n', 'utf8')];
+  const offsets = [0];
+  let length = chunks[0].length;
+  for (const [index, object] of objects.entries()) {
+    offsets.push(length);
+    const chunk = Buffer.concat([
+      Buffer.from(`${index + 1} 0 obj\n`, 'utf8'),
+      object,
+      Buffer.from('\nendobj\n', 'utf8'),
+    ]);
+    chunks.push(chunk);
+    length += chunk.length;
+  }
+  const xrefOffset = length;
+  const xrefEntries = offsets.map((offset, index) =>
+    index === 0 ? '0000000000 65535 f \n' : `${String(offset).padStart(10, '0')} 00000 n \n`
+  ).join('');
+  chunks.push(Buffer.from(
+    `xref\n0 ${offsets.length}\n${xrefEntries}` +
+    `trailer\n<< /Size ${offsets.length} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF\n`,
+    'utf8'
+  ));
+  return Buffer.concat(chunks);
+}
+
 export function createExcelInvoice(
   invoiceNo: string,
   date: string,
@@ -315,7 +365,25 @@ export async function generateDatasetFiles(): Promise<void> {
   const corruptBytes = Buffer.from([0x00, 0xFF, 0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x12, 0x34]);
   fs.writeFileSync(path.join(DATASET_DIR, 'INV-2026-010-CorruptPayload.pdf'), corruptBytes);
 
-  console.log(`Generated 10 evaluation documents in ${DATASET_DIR}`);
+  // 11. DOC-EVAL-011 (image-only scanned PDF)
+  const scannedInvoice = await createPngReceipt(
+    'INV-2026-011',
+    '2026-04-02',
+    'Northstar Imaging Supplies',
+    'DocuPulse Evaluation',
+    640.00,
+    64.00,
+    704.00,
+    'USD',
+    [{ desc: 'Thermal Paper Rolls', qty: 4, unitPrice: 160.00, amount: 640.00 }]
+  );
+  const scannedJpeg = await sharp(scannedInvoice).jpeg({ quality: 95 }).toBuffer({ resolveWithObject: true });
+  fs.writeFileSync(
+    path.join(DATASET_DIR, 'INV-2026-011-NorthstarScanned.pdf'),
+    createScannedPdf(scannedJpeg.data, scannedJpeg.info.width, scannedJpeg.info.height)
+  );
+
+  console.log(`Generated 11 evaluation documents in ${DATASET_DIR}`);
 }
 
 if (import.meta.url.endsWith(process.argv[1]) || process.argv[1]?.includes('generate_dataset')) {

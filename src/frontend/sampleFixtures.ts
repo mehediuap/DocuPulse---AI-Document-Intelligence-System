@@ -4,15 +4,81 @@
  * validation alerts, math discrepancies, and error handling through live REST APIs.
  */
 
-import {
-  createDigitalPdfBytes,
-  createScannedPdfBytes,
-  createMultiSheetXlsx,
-  createLegacyXls,
-} from '../services/document/tests.ts';
-
 function createFixtureFile(name: string, type: string, bytes: Uint8Array): File {
   return new File([bytes.slice().buffer as ArrayBuffer], name, { type });
+}
+
+function createPdfBytes(content: string): Uint8Array {
+  const encoder = new TextEncoder();
+  const objects = [
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>',
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+    `<< /Length ${encoder.encode(content).length} >>\nstream\n${content}\nendstream`,
+  ];
+  const chunks: Uint8Array[] = [encoder.encode('%PDF-1.7\n')];
+  const offsets = [0];
+  let length = chunks[0].length;
+
+  objects.forEach((object, index) => {
+    offsets.push(length);
+    const chunk = encoder.encode(`${index + 1} 0 obj\n${object}\nendobj\n`);
+    chunks.push(chunk);
+    length += chunk.length;
+  });
+
+  const xrefOffset = length;
+  const xref = [
+    `xref\n0 ${objects.length + 1}`,
+    '0000000000 65535 f ',
+    ...offsets.slice(1).map(offset => `${String(offset).padStart(10, '0')} 00000 n `),
+  ].join('\n');
+  chunks.push(encoder.encode(
+    `${xref}\ntrailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF\n`
+  ));
+  length = chunks.reduce((total, chunk) => total + chunk.length, 0);
+
+  const output = new Uint8Array(length);
+  let offset = 0;
+  for (const chunk of chunks) {
+    output.set(chunk, offset);
+    offset += chunk.length;
+  }
+  return output;
+}
+
+function createDigitalPdfBytes(invoiceNumber: string): Uint8Array {
+  const escape = (value: string) => value.replace(/[\\()]/g, '\\$&');
+  const lines = [
+    `Invoice Number: ${escape(invoiceNumber)}`,
+    'Invoice Date: 2026-03-15',
+    'Supplier: Global Apex Logistics Ltd',
+    'Customer: Global Logistics Group',
+    'Subtotal: 1250.00 Tax: 125.00 Total: 1375.00 USD',
+  ];
+  const content = lines.map((line, index) =>
+    `BT /F1 12 Tf 50 ${700 - index * 20} Td (${line}) Tj ET`
+  ).join('\n');
+  return createPdfBytes(content);
+}
+
+function createScannedPdfBytes(): Uint8Array {
+  return createPdfBytes('q Q');
+}
+
+async function createMultiSheetXlsx(): Promise<Uint8Array> {
+  const XLSX = await import('xlsx');
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([
+    ['Invoice Number', 'Issue Date', 'Customer', 'Total'],
+    ['INV-2026-889', '2026-10-15', 'Vertex BioPharma', 14250],
+  ]), 'Summary');
+  XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([
+    ['Item Code', 'Description', 'Quantity', 'Unit Price', 'Amount'],
+    ['ITM-01', 'High Precision Actuator', 4, 2500, 10000],
+  ]), 'LineItems');
+  return new Uint8Array(XLSX.write(workbook, { type: 'array', bookType: 'xlsx' }));
 }
 
 export interface DemoFixture {
@@ -20,7 +86,7 @@ export interface DemoFixture {
   label: string;
   description: string;
   badge: string;
-  generate: () => File;
+  generate: () => File | Promise<File>;
 }
 
 export const DEMO_FIXTURES: DemoFixture[] = [
@@ -30,7 +96,7 @@ export const DEMO_FIXTURES: DemoFixture[] = [
     description: 'Digital PDF with matching totals ($1,250.00 subtotal + $125.00 tax = $1,375.00 total)',
     badge: 'Expected: Completed',
     generate: () => {
-      const bytes = createDigitalPdfBytes('INV-2026-8801', 1);
+      const bytes = createDigitalPdfBytes('INV-2026-8801');
       return createFixtureFile('invoice_compliant_8801.pdf', 'application/pdf', bytes);
     },
   },
@@ -103,8 +169,8 @@ export const DEMO_FIXTURES: DemoFixture[] = [
     label: 'Multi-Sheet XLSX Ledger',
     description: 'OpenXML spreadsheet with 2 preserved worksheets & coordinate grids',
     badge: 'Spreadsheet',
-    generate: () => {
-      const bytes = createMultiSheetXlsx();
+    generate: async () => {
+      const bytes = await createMultiSheetXlsx();
       return createFixtureFile(
         'procurement_ledger_2026.xlsx',
         'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',

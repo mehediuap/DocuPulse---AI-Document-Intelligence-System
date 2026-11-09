@@ -116,7 +116,7 @@ export async function runDataValidationTests(): Promise<{
     }
   });
 
-  await test('Missing critical subtotal or tax amounts are invalid', async () => {
+  await test('Missing subtotal is invalid while missing tax cannot falsely reconcile', async () => {
     const missingSubtotal = ValidationService.validateInvoice(createBaseInvoice({ subtotal: null }));
     if (missingSubtotal.status !== 'invalid' ||
       !missingSubtotal.errors.some(issue => issue.code === 'MISSING_CRITICAL_AMOUNT' && issue.field === 'subtotal')) {
@@ -124,9 +124,12 @@ export async function runDataValidationTests(): Promise<{
     }
 
     const missingTax = ValidationService.validateInvoice(createBaseInvoice({ tax: null }));
-    if (missingTax.status !== 'invalid' ||
-      !missingTax.errors.some(issue => issue.code === 'MISSING_CRITICAL_AMOUNT' && issue.field === 'tax')) {
-      throw new Error('A missing tax amount must be a validation error.');
+    if (missingTax.status !== 'needs_review' ||
+      !missingTax.warnings.some(issue => issue.code === 'TAX_MISSING_CANNOT_RECONCILE')) {
+      throw new Error('Missing tax must be a warning and cannot be treated as zero for reconciliation.');
+    }
+    if (missingTax.reconciliation.isReconciled) {
+      throw new Error('Missing tax with a total differing from subtotal must not be reconciled.');
     }
   });
 

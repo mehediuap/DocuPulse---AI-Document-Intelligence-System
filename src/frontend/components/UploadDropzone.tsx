@@ -102,7 +102,7 @@ export const UploadDropzone: React.FC<UploadDropzoneProps> = ({
     setLoadingFixtureId(fixture.id);
     setUploadError(null);
     try {
-      const generated = fixture.generate();
+      const generated = await fixture.generate();
       await onUpload([generated]);
     } catch (err: any) {
       setUploadError(err.message || 'Failed to ingest demo fixture.');

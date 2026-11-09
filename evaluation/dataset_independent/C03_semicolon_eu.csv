@@ -1,0 +1,11 @@
+Rechnungsnummer;RE-9001
+Datum;2026-07-03
+Lieferant;Rheintal Maschinenbau GmbH
+Kunde;Alpenblick Hotels AG
+Waehrung;EUR
+Position;Menge;Einzelpreis;Betrag
+Wartung;2;600,00;1.200,00
+Ersatzteil;4;37,50;150,00
+Zwischensumme;;;1.350,00
+MwSt;;;256,50
+Gesamt;;;1.606,50

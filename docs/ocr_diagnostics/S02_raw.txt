@@ -1,0 +1,13 @@
+INVOICE
+
+Invoice No: INV-2026-952
+Date: 2026-08-11
+
+Supplier: Silverline Fabrication
+Customer: Northgate Builders
+
+Steel plate 6 142.00 852.00
+
+Subtotal: 852.00
+Tax: 68.16
+Total: 920.16 USD

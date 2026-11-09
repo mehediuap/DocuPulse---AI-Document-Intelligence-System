@@ -49,6 +49,11 @@ export function createApiAuthenticationMiddleware(
 ): RequestHandler {
   return (req, res, next) => {
     if (registry.size === 0) {
+      if (process.env.DOCUPULSE_API_KEY?.trim()) {
+        res.locals.actorId = 'api-key-user';
+        next();
+        return;
+      }
       if (isProduction) {
         res.status(503).json({
           success: false,

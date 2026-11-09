@@ -8,7 +8,7 @@ import { db as defaultDb } from './database.ts';
 import { DocumentRecord, AuditEntry, JobStatus } from '../services/api/types.ts';
 import { InvoiceExtractionResult } from '../services/extraction/schemas.ts';
 import { ValidationSummary } from '../services/validation/types.ts';
-import { toCents, fromCents } from '../services/validation/decimalUtils.ts';
+import { toCents } from '../services/validation/decimalUtils.ts';
 import { normalizeSupplierName, normalizeInvoiceNumber } from '../services/validation/duplicateDetector.ts';
 
 export interface DocumentFilter {

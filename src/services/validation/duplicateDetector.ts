@@ -85,7 +85,7 @@ export function normalizeSupplierName(name: string): string {
   if (!name) return '';
   return name
     .toLowerCase()
-    .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, ' ')
+    .replace(/[.,/#!$%^&*;:{}=_`~()-]/g, ' ')
     .replace(/\b(inc|incorporated|ltd|limited|llc|corp|corporation|gmbh|co|company|sa|plc)\b/g, '')
     .replace(/\s+/g, ' ')
     .trim();

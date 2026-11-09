@@ -4,7 +4,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import { DocumentRecord, JobStatus } from '../api/types.ts';
+import { JobStatus } from '../api/types.ts';
 import { documentPipeline } from '../document/documentPipeline.ts';
 import { DocumentSourceStorage, documentSourceStorage } from '../document/sourceStorage.ts';
 import { ExtractionFactory } from '../extraction/llmAdapter.ts';

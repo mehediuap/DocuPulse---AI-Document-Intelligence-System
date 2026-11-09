@@ -9,10 +9,13 @@
     "build": "vite build",
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
-    "lint": "tsc --noEmit",
+    "lint": "tsc --noEmit && eslint .",
     "test": "npx tsx scripts/run-tests.ts",
     "evaluate": "npx tsx scripts/evaluate-system.ts",
-    "evaluate:gemini": "npx tsx scripts/evaluate-system.ts --mode=gemini"
+    "evaluate:gemini": "npx tsx scripts/evaluate-system.ts --mode=gemini",
+    "evaluate:v2": "npx tsx scripts/evaluate-v2.ts",
+    "dataset:independent": "python evaluation/generate_realistic_dataset.py",
+    "evaluate:independent": "npx tsx scripts/evaluate-system.ts --dataset=evaluation/dataset_independent --ground-truth=evaluation/ground_truth_independent.json --output=docs/evaluation_metrics_independent.json --report=docs/evaluation_report_independent.md"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
@@ -34,6 +37,10 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "@babel/eslint-parser": "^8.0.7",
+    "@babel/plugin-syntax-jsx": "^8.0.1",
+    "@babel/plugin-syntax-typescript": "^8.0.3",
+    "@eslint/js": "^10.0.1",
     "@types/better-sqlite3": "^9.6.0",
     "@types/express": "^4.17.21",
     "@types/multer": "^2.3.0",
@@ -42,6 +49,8 @@
     "@types/react-dom": "^19.3.0",
     "autoprefixer": "^10.4.21",
     "esbuild": "^0.28.2",
+    "eslint": "^10.14.0",
+    "globals": "^17.14.0",
     "tailwindcss": "^4.3.3",
     "tsx": "^4.21.0",
     "typescript": "^7.0.2"

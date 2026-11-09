@@ -1,0 +1,15 @@
+INVOICE
+Invoice No: INV-2026-903
+Date: 2026-08-03
+
+‘Supplier: Tanager Electronics
+
+Customer: Kestrel Labs
+
+Sensorboard 25 14.40 360.00
+
+Subtotal: 360.00
+
+Tax: 18.00
+
+Total: 378.00 USD

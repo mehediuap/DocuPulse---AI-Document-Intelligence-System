@@ -1,0 +1,2510 @@
+{
+  "evaluation_metadata": {
+    "timestamp": "2026-11-05T12:04:59.164Z",
+    "sample_size": 27,
+    "dataset_path": "evaluation/dataset_independent",
+    "ground_truth_path": "evaluation/ground_truth_independent.json",
+    "skipped_documents": [],
+    "extraction_adapter": "mock",
+    "model_alias": "deterministic_rule_parser",
+    "ocr_provider": "tesseract",
+    "ocr_fallback": "disabled",
+    "hardware_and_os": {
+      "node_version": "v24.13.0",
+      "platform": "win32",
+      "arch": "x64",
+      "cpu_count": 4,
+      "total_memory_gb": 11.8
+    }
+  },
+  "system_level_metrics": {
+    "document_success_rate_percentage": 100,
+    "document_failure_rate_percentage": 0,
+    "validation_concordance_rate_percentage": 59.3,
+    "overall_field_accuracy_percentage": 88.4,
+    "strict_field_accuracy_percentage": 88,
+    "documents_with_every_field_strictly_correct_percentage": 45.8,
+    "invented_values_total": 0,
+    "ocr_ground_truth_field_accuracy": {
+      "accuracy_percentage": 100,
+      "exact_matches": 45,
+      "fields_evaluated": 45,
+      "documents_evaluated": 5,
+      "provider_configured": false
+    },
+    "ocr_page_quality": {
+      "pages_processed": 5,
+      "pages_with_measured_confidence": 5,
+      "mean_tesseract_confidence": 0.914,
+      "low_quality_pages": 0,
+      "by_document_type": {
+        "image": {
+          "documents": 3,
+          "exact_fields": 27,
+          "fields_evaluated": 27,
+          "strict_accuracy_percentage": 100,
+          "documents_with_ocr_text": 3,
+          "ocr_pages": 3,
+          "mean_tesseract_confidence": 0.913,
+          "low_quality_pages": 0
+        },
+        "scanned_pdf": {
+          "documents": 2,
+          "exact_fields": 18,
+          "fields_evaluated": 18,
+          "strict_accuracy_percentage": 100,
+          "documents_with_ocr_text": 2,
+          "ocr_pages": 2,
+          "mean_tesseract_confidence": 0.915,
+          "low_quality_pages": 0
+        }
+      }
+    }
+  },
+  "latency_metrics_ms": {
+    "min": 0,
+    "max": 4583,
+    "mean": 521,
+    "median": 19,
+    "p95": 3109,
+    "total_batch_duration_ms": 14061
+  },
+  "field_level_accuracy": {
+    "invoice_number": {
+      "total_evaluated": 24,
+      "exact_matches": 23,
+      "accuracy_percentage": 95.8,
+      "strict_matches": 23,
+      "strict_accuracy_percentage": 95.8,
+      "invented_values": 0
+    },
+    "invoice_date": {
+      "total_evaluated": 24,
+      "exact_matches": 23,
+      "accuracy_percentage": 95.8,
+      "strict_matches": 23,
+      "strict_accuracy_percentage": 95.8,
+      "invented_values": 0
+    },
+    "supplier_name": {
+      "total_evaluated": 24,
+      "exact_matches": 24,
+      "accuracy_percentage": 100,
+      "strict_matches": 23,
+      "strict_accuracy_percentage": 95.8,
+      "invented_values": 0
+    },
+    "customer_name": {
+      "total_evaluated": 24,
+      "exact_matches": 23,
+      "accuracy_percentage": 95.8,
+      "strict_matches": 23,
+      "strict_accuracy_percentage": 95.8,
+      "invented_values": 0
+    },
+    "subtotal": {
+      "total_evaluated": 24,
+      "exact_matches": 20,
+      "accuracy_percentage": 83.3,
+      "strict_matches": 20,
+      "strict_accuracy_percentage": 83.3,
+      "invented_values": 0
+    },
+    "tax": {
+      "total_evaluated": 24,
+      "exact_matches": 20,
+      "accuracy_percentage": 83.3,
+      "strict_matches": 20,
+      "strict_accuracy_percentage": 83.3,
+      "invented_values": 0
+    },
+    "total": {
+      "total_evaluated": 24,
+      "exact_matches": 21,
+      "accuracy_percentage": 87.5,
+      "strict_matches": 21,
+      "strict_accuracy_percentage": 87.5,
+      "invented_values": 0
+    },
+    "currency": {
+      "total_evaluated": 24,
+      "exact_matches": 23,
+      "accuracy_percentage": 95.8,
+      "strict_matches": 23,
+      "strict_accuracy_percentage": 95.8,
+      "invented_values": 0
+    },
+    "line_items_count": {
+      "total_evaluated": 24,
+      "exact_matches": 14,
+      "accuracy_percentage": 58.3,
+      "strict_matches": 14,
+      "strict_accuracy_percentage": 58.3,
+      "invented_values": 0
+    }
+  },
+  "document_type_accuracy": {
+    "pdf": {
+      "documents": 13,
+      "strict_exact_fields": 107,
+      "fields_evaluated": 117,
+      "strict_accuracy_percentage": 91.5
+    },
+    "csv": {
+      "documents": 3,
+      "strict_exact_fields": 17,
+      "fields_evaluated": 27,
+      "strict_accuracy_percentage": 63
+    },
+    "xlsx": {
+      "documents": 3,
+      "strict_exact_fields": 21,
+      "fields_evaluated": 27,
+      "strict_accuracy_percentage": 77.8
+    },
+    "image": {
+      "documents": 3,
+      "strict_exact_fields": 27,
+      "fields_evaluated": 27,
+      "strict_accuracy_percentage": 100
+    },
+    "scanned_pdf": {
+      "documents": 2,
+      "strict_exact_fields": 18,
+      "fields_evaluated": 18,
+      "strict_accuracy_percentage": 100
+    }
+  },
+  "document_results": [
+    {
+      "id": "V2-001",
+      "filename": "D01_standard_us.pdf",
+      "file_type": "pdf",
+      "is_corrupt": false,
+      "pipeline_status": "completed",
+      "expected_validation_status": "valid",
+      "actual_validation_status": "invalid",
+      "status_concordance": false,
+      "ocr_page_count": 0,
+      "ocr_text_available": null,
+      "ocr_confidences": [],
+      "low_quality_ocr_pages": [],
+      "processing_time_ms": 75,
+      "field_evaluations": {
+        "invoice_number": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "INV-2026-101",
+          "actual": "INV-2026-101"
+        },
+        "invoice_date": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "2026-04-02",
+          "actual": "2026-04-02"
+        },
+        "supplier_name": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "Harborview Marine Supplies Inc",
+          "actual": "Harborview Marine Supplies Inc"
+        },
+        "customer_name": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "Lakeside Boating Club",
+          "actual": "Lakeside Boating Club"
+        },
+        "subtotal": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": 120,
+          "actual": 120
+        },
+        "tax": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": 9.6,
+          "actual": 9.6
+        },
+        "total": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": 129.6,
+          "actual": 129.6
+        },
+        "currency": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "USD",
+          "actual": "USD"
+        },
+        "line_items_count": {
+          "matched": false,
+          "strict_matched": false,
+          "invented": false,
+          "expected": 2,
+          "actual": 1
+        }
+      },
+      "field_accuracy_percentage": 88.9,
+      "strict_field_accuracy_percentage": 88.9,
+      "warnings": [],
+      "errors": [
+        "ARITHMETIC_SUBTOTAL_MISMATCH: Sum of line items (70) does not match stated subtotal (120). Delta: 50."
+      ]
+    },
+    {
+      "id": "V2-002",
+      "filename": "D02_labels_gbp.pdf",
+      "file_type": "pdf",
+      "is_corrupt": false,
+      "pipeline_status": "completed",
+      "expected_validation_status": "valid",
+      "actual_validation_status": "invalid",
+      "status_concordance": false,
+      "ocr_page_count": 0,
+      "ocr_text_available": null,
+      "ocr_confidences": [],
+      "low_quality_ocr_pages": [],
+      "processing_time_ms": 22,
+      "field_evaluations": {
+        "invoice_number": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "2026/0457",
+          "actual": "2026/0457"
+        },
+        "invoice_date": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "2026-04-14",
+          "actual": "2026-04-14"
+        },
+        "supplier_name": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "Kestrel Office Furniture Ltd",
+          "actual": "Kestrel Office Furniture Ltd"
+        },
+        "customer_name": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "Brightpath Accounting",
+          "actual": "Brightpath Accounting"
+        },
+        "subtotal": {
+          "matched": false,
+          "strict_matched": false,
+          "invented": false,
+          "expected": 690,
+          "actual": null
+        },
+        "tax": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": 138,
+          "actual": 138
+        },
+        "total": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": 828,
+          "actual": 828
+        },
+        "currency": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "GBP",
+          "actual": "GBP"
+        },
+        "line_items_count": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": 2,
+          "actual": 2
+        }
+      },
+      "field_accuracy_percentage": 88.9,
+      "strict_field_accuracy_percentage": 88.9,
+      "warnings": [],
+      "errors": [
+        "MISSING_CRITICAL_AMOUNT: Critical financial field \"subtotal\" is missing or could not be parsed."
+      ]
+    },
+    {
+      "id": "V2-003",
+      "filename": "D03_german_eur.pdf",
+      "file_type": "pdf",
+      "is_corrupt": false,
+      "pipeline_status": "completed",
+      "expected_validation_status": "valid",
+      "actual_validation_status": "needs_review",
+      "status_concordance": false,
+      "ocr_page_count": 0,
+      "ocr_text_available": null,
+      "ocr_confidences": [],
+      "low_quality_ocr_pages": [],
+      "processing_time_ms": 15,
+      "field_evaluations": {
+        "invoice_number": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "RE-88231",
+          "actual": "RE-88231"
+        },
+        "invoice_date": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "2026-05-03",
+          "actual": "2026-05-03"
+        },
+        "supplier_name": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "Nordlicht Werkzeuge GmbH",
+          "actual": "Nordlicht Werkzeuge GmbH"
+        },
+        "customer_name": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "Baumeister Schulz AG",
+          "actual": "Baumeister Schulz AG"
+        },
+        "subtotal": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": 1000,
+          "actual": 1000
+        },
+        "tax": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": 190,
+          "actual": 190
+        },
+        "total": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": 1190,
+          "actual": 1190
+        },
+        "currency": {
+          "matched": false,
+          "strict_matched": false,
+          "invented": false,
+          "expected": "EUR",
+          "actual": null
+        },
+        "line_items_count": {
+          "matched": false,
+          "strict_matched": false,
+          "invented": false,
+          "expected": 2,
+          "actual": 0
+        }
+      },
+      "field_accuracy_percentage": 77.8,
+      "strict_field_accuracy_percentage": 77.8,
+      "warnings": [
+        "MISSING_CURRENCY: Invoice currency code is missing; defaulting or cross-currency risks."
+      ],
+      "errors": []
+    },
+    {
+      "id": "V2-004",
+      "filename": "D04_bdt.pdf",
+      "file_type": "pdf",
+      "is_corrupt": false,
+      "pipeline_status": "completed",
+      "expected_validation_status": "valid",
+      "actual_validation_status": "valid",
+      "status_concordance": true,
+      "ocr_page_count": 0,
+      "ocr_text_available": null,
+      "ocr_confidences": [],
+      "low_quality_ocr_pages": [],
+      "processing_time_ms": 19,
+      "field_evaluations": {
+        "invoice_number": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "DHK-2026-0912",
+          "actual": "DHK-2026-0912"
+        },
+        "invoice_date": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "2026-04-21",
+          "actual": "2026-04-21"
+        },
+        "supplier_name": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "Padma Textile Mills Ltd",
+          "actual": "Padma Textile Mills Ltd"
+        },
+        "customer_name": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "Dhaka Garments Export Co",
+          "actual": "Dhaka Garments Export Co"
+        },
+        "subtotal": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": 165000,
+          "actual": 165000
+        },
+        "tax": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": 24750,
+          "actual": 24750
+        },
+        "total": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": 189750,
+          "actual": 189750
+        },
+        "currency": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "BDT",
+          "actual": "BDT"
+        },
+        "line_items_count": {
+          "matched": false,
+          "strict_matched": false,
+          "invented": false,
+          "expected": 2,
+          "actual": 0
+        }
+      },
+      "field_accuracy_percentage": 88.9,
+      "strict_field_accuracy_percentage": 88.9,
+      "warnings": [],
+      "errors": []
+    },
+    {
+      "id": "V2-005",
+      "filename": "D05_no_customer.pdf",
+      "file_type": "pdf",
+      "is_corrupt": false,
+      "pipeline_status": "completed",
+      "expected_validation_status": "needs_review",
+      "actual_validation_status": "needs_review",
+      "status_concordance": true,
+      "ocr_page_count": 0,
+      "ocr_text_available": null,
+      "ocr_confidences": [],
+      "low_quality_ocr_pages": [],
+      "processing_time_ms": 14,
+      "field_evaluations": {
+        "invoice_number": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "INV-2026-205",
+          "actual": "INV-2026-205"
+        },
+        "invoice_date": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "2026-05-10",
+          "actual": "2026-05-10"
+        },
+        "supplier_name": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "Greenfield Organics LLC",
+          "actual": "Greenfield Organics LLC"
+        },
+        "customer_name": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": null,
+          "actual": null
+        },
+        "subtotal": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": 292.5,
+          "actual": 292.5
+        },
+        "tax": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": 20.48,
+          "actual": 20.48
+        },
+        "total": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": 312.98,
+          "actual": 312.98
+        },
+        "currency": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "USD",
+          "actual": "USD"
+        },
+        "line_items_count": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": 1,
+          "actual": 1
+        }
+      },
+      "field_accuracy_percentage": 100,
+      "strict_field_accuracy_percentage": 100,
+      "warnings": [
+        "MISSING_REQUIRED_FIELD: Required field \"customer_name\" is missing or unparseable."
+      ],
+      "errors": []
+    },
+    {
+      "id": "V2-006",
+      "filename": "D06_tax_free.pdf",
+      "file_type": "pdf",
+      "is_corrupt": false,
+      "pipeline_status": "completed",
+      "expected_validation_status": "valid",
+      "actual_validation_status": "valid",
+      "status_concordance": true,
+      "ocr_page_count": 0,
+      "ocr_text_available": null,
+      "ocr_confidences": [],
+      "low_quality_ocr_pages": [],
+      "processing_time_ms": 37,
+      "field_evaluations": {
+        "invoice_number": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "TF-0099",
+          "actual": "TF-0099"
+        },
+        "invoice_date": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "2026-05-11",
+          "actual": "2026-05-11"
+        },
+        "supplier_name": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "Riverstone Consulting",
+          "actual": "Riverstone Consulting"
+        },
+        "customer_name": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "Cobalt Startups",
+          "actual": "Cobalt Startups"
+        },
+        "subtotal": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": 1500,
+          "actual": 1500
+        },
+        "tax": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": null,
+          "actual": null
+        },
+        "total": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": 1500,
+          "actual": 1500
+        },
+        "currency": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "USD",
+          "actual": "USD"
+        },
+        "line_items_count": {
+          "matched": false,
+          "strict_matched": false,
+          "invented": false,
+          "expected": 1,
+          "actual": 0
+        }
+      },
+      "field_accuracy_percentage": 88.9,
+      "strict_field_accuracy_percentage": 88.9,
+      "warnings": [],
+      "errors": []
+    },
+    {
+      "id": "V2-007",
+      "filename": "D07_math_error.pdf",
+      "file_type": "pdf",
+      "is_corrupt": false,
+      "pipeline_status": "completed",
+      "expected_validation_status": "invalid",
+      "actual_validation_status": "invalid",
+      "status_concordance": true,
+      "ocr_page_count": 0,
+      "ocr_text_available": null,
+      "ocr_confidences": [],
+      "low_quality_ocr_pages": [],
+      "processing_time_ms": 13,
+      "field_evaluations": {
+        "invoice_number": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "INV-2026-307",
+          "actual": "INV-2026-307"
+        },
+        "invoice_date": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "2026-05-20",
+          "actual": "2026-05-20"
+        },
+        "supplier_name": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "Summit Lab Equipment Co",
+          "actual": "Summit Lab Equipment Co"
+        },
+        "customer_name": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "Pinecrest Clinic",
+          "actual": "Pinecrest Clinic"
+        },
+        "subtotal": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": 100,
+          "actual": 100
+        },
+        "tax": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": 10,
+          "actual": 10
+        },
+        "total": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": 115,
+          "actual": 115
+        },
+        "currency": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "USD",
+          "actual": "USD"
+        },
+        "line_items_count": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": 1,
+          "actual": 1
+        }
+      },
+      "field_accuracy_percentage": 100,
+      "strict_field_accuracy_percentage": 100,
+      "warnings": [],
+      "errors": [
+        "ARITHMETIC_TOTAL_MISMATCH: Financial mismatch: Subtotal (100) + Tax (10) = 110, but stated Total is 115. Delta: 5."
+      ]
+    },
+    {
+      "id": "V2-008",
+      "filename": "D08_multipage.pdf",
+      "file_type": "pdf",
+      "is_corrupt": false,
+      "pipeline_status": "completed",
+      "expected_validation_status": "valid",
+      "actual_validation_status": "valid",
+      "status_concordance": true,
+      "ocr_page_count": 0,
+      "ocr_text_available": null,
+      "ocr_confidences": [],
+      "low_quality_ocr_pages": [],
+      "processing_time_ms": 22,
+      "field_evaluations": {
+        "invoice_number": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "INV-2026-410",
+          "actual": "INV-2026-410"
+        },
+        "invoice_date": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "2026-06-01",
+          "actual": "2026-06-01"
+        },
+        "supplier_name": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "Atlas Industrial Parts Co",
+          "actual": "Atlas Industrial Parts Co"
+        },
+        "customer_name": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "Foundry Works Ltd",
+          "actual": "Foundry Works Ltd"
+        },
+        "subtotal": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": 1038.24,
+          "actual": 1038.24
+        },
+        "tax": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": 83.06,
+          "actual": 83.06
+        },
+        "total": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": 1121.3,
+          "actual": 1121.3
+        },
+        "currency": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "USD",
+          "actual": "USD"
+        },
+        "line_items_count": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": 10,
+          "actual": 10
+        }
+      },
+      "field_accuracy_percentage": 100,
+      "strict_field_accuracy_percentage": 100,
+      "warnings": [],
+      "errors": []
+    },
+    {
+      "id": "V2-009",
+      "filename": "D09_table_layout.pdf",
+      "file_type": "pdf",
+      "is_corrupt": false,
+      "pipeline_status": "completed",
+      "expected_validation_status": "valid",
+      "actual_validation_status": "needs_review",
+      "status_concordance": false,
+      "ocr_page_count": 0,
+      "ocr_text_available": null,
+      "ocr_confidences": [],
+      "low_quality_ocr_pages": [],
+      "processing_time_ms": 35,
+      "field_evaluations": {
+        "invoice_number": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "INV-2026-512",
+          "actual": "INV-2026-512"
+        },
+        "invoice_date": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "2026-06-08",
+          "actual": "2026-06-08"
+        },
+        "supplier_name": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "Bluebird Print Studio",
+          "actual": "Bluebird Print Studio"
+        },
+        "customer_name": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "Harlow & Finch Attorneys",
+          "actual": "Harlow & Finch Attorneys"
+        },
+        "subtotal": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": 490,
+          "actual": 490
+        },
+        "tax": {
+          "matched": false,
+          "strict_matched": false,
+          "invented": false,
+          "expected": 40.43,
+          "actual": null
+        },
+        "total": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": 530.43,
+          "actual": 530.43
+        },
+        "currency": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "USD",
+          "actual": "USD"
+        },
+        "line_items_count": {
+          "matched": false,
+          "strict_matched": false,
+          "invented": false,
+          "expected": 5,
+          "actual": 0
+        }
+      },
+      "field_accuracy_percentage": 77.8,
+      "strict_field_accuracy_percentage": 77.8,
+      "warnings": [
+        "TAX_MISSING_CANNOT_RECONCILE: Total (530.43) differs from subtotal (490) by 40.43 but no tax amount was extracted, so the invoice cannot be reconciled."
+      ],
+      "errors": []
+    },
+    {
+      "id": "V2-010",
+      "filename": "D10_bill_wording.pdf",
+      "file_type": "pdf",
+      "is_corrupt": false,
+      "pipeline_status": "completed",
+      "expected_validation_status": "valid",
+      "actual_validation_status": "needs_review",
+      "status_concordance": false,
+      "ocr_page_count": 0,
+      "ocr_text_available": null,
+      "ocr_confidences": [],
+      "low_quality_ocr_pages": [],
+      "processing_time_ms": 23,
+      "field_evaluations": {
+        "invoice_number": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "B-7781",
+          "actual": "B-7781"
+        },
+        "invoice_date": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "2026-06-01",
+          "actual": "2026-06-01"
+        },
+        "supplier_name": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "Maple Street Bakery",
+          "actual": "Maple Street Bakery"
+        },
+        "customer_name": {
+          "matched": false,
+          "strict_matched": false,
+          "invented": false,
+          "expected": "City Cafe Network",
+          "actual": null
+        },
+        "subtotal": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": 408,
+          "actual": 408
+        },
+        "tax": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": 20.4,
+          "actual": 20.4
+        },
+        "total": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": 428.4,
+          "actual": 428.4
+        },
+        "currency": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "USD",
+          "actual": "USD"
+        },
+        "line_items_count": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": 3,
+          "actual": 3
+        }
+      },
+      "field_accuracy_percentage": 88.9,
+      "strict_field_accuracy_percentage": 88.9,
+      "warnings": [
+        "MISSING_REQUIRED_FIELD: Required field \"customer_name\" is missing or unparseable."
+      ],
+      "errors": []
+    },
+    {
+      "id": "V2-011",
+      "filename": "D11_duplicate_of_D01.pdf",
+      "file_type": "pdf",
+      "is_corrupt": false,
+      "pipeline_status": "completed",
+      "expected_validation_status": "needs_review",
+      "actual_validation_status": "invalid",
+      "status_concordance": false,
+      "ocr_page_count": 0,
+      "ocr_text_available": null,
+      "ocr_confidences": [],
+      "low_quality_ocr_pages": [],
+      "processing_time_ms": 14,
+      "field_evaluations": {
+        "invoice_number": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "INV-2026-101",
+          "actual": "INV-2026-101"
+        },
+        "invoice_date": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "2026-04-02",
+          "actual": "2026-04-02"
+        },
+        "supplier_name": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "Harborview Marine Supplies Inc",
+          "actual": "Harborview Marine Supplies Inc"
+        },
+        "customer_name": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "Lakeside Boating Club",
+          "actual": "Lakeside Boating Club"
+        },
+        "subtotal": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": 120,
+          "actual": 120
+        },
+        "tax": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": 9.6,
+          "actual": 9.6
+        },
+        "total": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": 129.6,
+          "actual": 129.6
+        },
+        "currency": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "USD",
+          "actual": "USD"
+        },
+        "line_items_count": {
+          "matched": false,
+          "strict_matched": false,
+          "invented": false,
+          "expected": 2,
+          "actual": 1
+        }
+      },
+      "field_accuracy_percentage": 88.9,
+      "strict_field_accuracy_percentage": 88.9,
+      "warnings": [
+        "DUPLICATE_INVOICE_CANDIDATE: Duplicate invoice candidate identified: Supplier \"Harborview Marine Supplies Inc\" and invoice #INV-2026-101."
+      ],
+      "errors": [
+        "ARITHMETIC_SUBTOTAL_MISMATCH: Sum of line items (70) does not match stated subtotal (120). Delta: 50."
+      ]
+    },
+    {
+      "id": "V2-012",
+      "filename": "D12_numeric_number.pdf",
+      "file_type": "pdf",
+      "is_corrupt": false,
+      "pipeline_status": "completed",
+      "expected_validation_status": "valid",
+      "actual_validation_status": "valid",
+      "status_concordance": true,
+      "ocr_page_count": 0,
+      "ocr_text_available": null,
+      "ocr_confidences": [],
+      "low_quality_ocr_pages": [],
+      "processing_time_ms": 13,
+      "field_evaluations": {
+        "invoice_number": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "4471",
+          "actual": "4471"
+        },
+        "invoice_date": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "2026-06-15",
+          "actual": "2026-06-15"
+        },
+        "supplier_name": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "Ocean Freight Partners Co",
+          "actual": "Ocean Freight Partners Co"
+        },
+        "customer_name": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "Delta Imports",
+          "actual": "Delta Imports"
+        },
+        "subtotal": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": 2550,
+          "actual": 2550
+        },
+        "tax": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": 0,
+          "actual": 0
+        },
+        "total": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": 2550,
+          "actual": 2550
+        },
+        "currency": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "USD",
+          "actual": "USD"
+        },
+        "line_items_count": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": 1,
+          "actual": 1
+        }
+      },
+      "field_accuracy_percentage": 100,
+      "strict_field_accuracy_percentage": 100,
+      "warnings": [],
+      "errors": []
+    },
+    {
+      "id": "V2-013",
+      "filename": "D13_distractors.pdf",
+      "file_type": "pdf",
+      "is_corrupt": false,
+      "pipeline_status": "completed",
+      "expected_validation_status": "valid",
+      "actual_validation_status": "valid",
+      "status_concordance": true,
+      "ocr_page_count": 0,
+      "ocr_text_available": null,
+      "ocr_confidences": [],
+      "low_quality_ocr_pages": [],
+      "processing_time_ms": 17,
+      "field_evaluations": {
+        "invoice_number": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "INV-2026-618",
+          "actual": "INV-2026-618"
+        },
+        "invoice_date": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "2026-06-15",
+          "actual": "2026-06-15"
+        },
+        "supplier_name": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "Crescent Logistics Group",
+          "actual": "Crescent Logistics Group"
+        },
+        "customer_name": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "Aurora Retail Partners",
+          "actual": "Aurora Retail Partners"
+        },
+        "subtotal": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": 291,
+          "actual": 291
+        },
+        "tax": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": 29.1,
+          "actual": 29.1
+        },
+        "total": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": 320.1,
+          "actual": 320.1
+        },
+        "currency": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "USD",
+          "actual": "USD"
+        },
+        "line_items_count": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": 2,
+          "actual": 2
+        }
+      },
+      "field_accuracy_percentage": 100,
+      "strict_field_accuracy_percentage": 100,
+      "warnings": [],
+      "errors": []
+    },
+    {
+      "id": "V2-014",
+      "filename": "C01_keyvalue.csv",
+      "file_type": "csv",
+      "is_corrupt": false,
+      "pipeline_status": "warning",
+      "expected_validation_status": "valid",
+      "actual_validation_status": "invalid",
+      "status_concordance": false,
+      "ocr_page_count": 0,
+      "ocr_text_available": null,
+      "ocr_confidences": [],
+      "low_quality_ocr_pages": [],
+      "processing_time_ms": 13,
+      "field_evaluations": {
+        "invoice_number": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "INV-2026-701",
+          "actual": "INV-2026-701"
+        },
+        "invoice_date": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "2026-07-01",
+          "actual": "2026-07-01"
+        },
+        "supplier_name": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "Tidewater Chemicals Inc",
+          "actual": "Tidewater Chemicals Inc"
+        },
+        "customer_name": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "Orchard Farms LLC",
+          "actual": "Orchard Farms LLC"
+        },
+        "subtotal": {
+          "matched": false,
+          "strict_matched": false,
+          "invented": false,
+          "expected": 560,
+          "actual": null
+        },
+        "tax": {
+          "matched": false,
+          "strict_matched": false,
+          "invented": false,
+          "expected": 44.8,
+          "actual": null
+        },
+        "total": {
+          "matched": false,
+          "strict_matched": false,
+          "invented": false,
+          "expected": 604.8,
+          "actual": null
+        },
+        "currency": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "USD",
+          "actual": "USD"
+        },
+        "line_items_count": {
+          "matched": false,
+          "strict_matched": false,
+          "invented": false,
+          "expected": 2,
+          "actual": 4
+        }
+      },
+      "field_accuracy_percentage": 55.6,
+      "strict_field_accuracy_percentage": 55.6,
+      "warnings": [
+        "Auto-detected delimiter: \",\".",
+        "Inconsistent column count detected on 6 data rows; standardized to 4 columns.",
+        "MISSING_REQUIRED_FIELD: Required field \"total\" is missing or unparseable."
+      ],
+      "errors": [
+        "MISSING_CRITICAL_AMOUNT: Critical financial field \"subtotal\" is missing or could not be parsed."
+      ]
+    },
+    {
+      "id": "V2-015",
+      "filename": "C02_single_row.csv",
+      "file_type": "csv",
+      "is_corrupt": false,
+      "pipeline_status": "warning",
+      "expected_validation_status": "valid",
+      "actual_validation_status": "needs_review",
+      "status_concordance": false,
+      "ocr_page_count": 0,
+      "ocr_text_available": null,
+      "ocr_confidences": [],
+      "low_quality_ocr_pages": [],
+      "processing_time_ms": 4,
+      "field_evaluations": {
+        "invoice_number": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "INV-2026-702",
+          "actual": "INV-2026-702"
+        },
+        "invoice_date": {
+          "matched": false,
+          "strict_matched": false,
+          "invented": false,
+          "expected": "2026-07-02",
+          "actual": null
+        },
+        "supplier_name": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "Falcon Roofing Supply",
+          "actual": "Falcon Roofing Supply"
+        },
+        "customer_name": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "Ridgeview Homes",
+          "actual": "Ridgeview Homes"
+        },
+        "subtotal": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": 3200,
+          "actual": 3200
+        },
+        "tax": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": 192,
+          "actual": 192
+        },
+        "total": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": 3392,
+          "actual": 3392
+        },
+        "currency": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "USD",
+          "actual": "USD"
+        },
+        "line_items_count": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": 0,
+          "actual": 0
+        }
+      },
+      "field_accuracy_percentage": 88.9,
+      "strict_field_accuracy_percentage": 88.9,
+      "warnings": [
+        "Auto-detected delimiter: \",\".",
+        "MISSING_REQUIRED_FIELD: Required field \"invoice_date\" is missing or unparseable."
+      ],
+      "errors": []
+    },
+    {
+      "id": "V2-016",
+      "filename": "C03_semicolon_eu.csv",
+      "file_type": "csv",
+      "is_corrupt": false,
+      "pipeline_status": "warning",
+      "expected_validation_status": "valid",
+      "actual_validation_status": "invalid",
+      "status_concordance": false,
+      "ocr_page_count": 0,
+      "ocr_text_available": null,
+      "ocr_confidences": [],
+      "low_quality_ocr_pages": [],
+      "processing_time_ms": 11,
+      "field_evaluations": {
+        "invoice_number": {
+          "matched": false,
+          "strict_matched": false,
+          "invented": false,
+          "expected": "RE-9001",
+          "actual": null
+        },
+        "invoice_date": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "2026-07-03",
+          "actual": "2026-07-03"
+        },
+        "supplier_name": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "Rheintal Maschinenbau GmbH",
+          "actual": "Rheintal Maschinenbau GmbH"
+        },
+        "customer_name": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "Alpenblick Hotels AG",
+          "actual": "Alpenblick Hotels AG"
+        },
+        "subtotal": {
+          "matched": false,
+          "strict_matched": false,
+          "invented": false,
+          "expected": 1350,
+          "actual": null
+        },
+        "tax": {
+          "matched": false,
+          "strict_matched": false,
+          "invented": false,
+          "expected": 256.5,
+          "actual": null
+        },
+        "total": {
+          "matched": false,
+          "strict_matched": false,
+          "invented": false,
+          "expected": 1606.5,
+          "actual": null
+        },
+        "currency": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "EUR",
+          "actual": "EUR"
+        },
+        "line_items_count": {
+          "matched": false,
+          "strict_matched": false,
+          "invented": false,
+          "expected": 2,
+          "actual": 5
+        }
+      },
+      "field_accuracy_percentage": 44.4,
+      "strict_field_accuracy_percentage": 44.4,
+      "warnings": [
+        "Auto-detected delimiter: \";\".",
+        "Inconsistent column count detected on 6 data rows; standardized to 4 columns.",
+        "MISSING_REQUIRED_FIELD: Required field \"invoice_number\" is missing or unparseable.",
+        "MISSING_REQUIRED_FIELD: Required field \"total\" is missing or unparseable."
+      ],
+      "errors": [
+        "MISSING_CRITICAL_AMOUNT: Critical financial field \"subtotal\" is missing or could not be parsed."
+      ]
+    },
+    {
+      "id": "V2-017",
+      "filename": "X01_single_sheet.xlsx",
+      "file_type": "xlsx",
+      "is_corrupt": false,
+      "pipeline_status": "completed",
+      "expected_validation_status": "valid",
+      "actual_validation_status": "invalid",
+      "status_concordance": false,
+      "ocr_page_count": 0,
+      "ocr_text_available": null,
+      "ocr_confidences": [],
+      "low_quality_ocr_pages": [],
+      "processing_time_ms": 62,
+      "field_evaluations": {
+        "invoice_number": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "INV-2026-801",
+          "actual": "INV-2026-801"
+        },
+        "invoice_date": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "2026-07-10",
+          "actual": "2026-07-10"
+        },
+        "supplier_name": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "Copperline Electrical Supply",
+          "actual": "Copperline Electrical Supply | |"
+        },
+        "customer_name": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "Westbank Apartments",
+          "actual": "Westbank Apartments | |"
+        },
+        "subtotal": {
+          "matched": false,
+          "strict_matched": false,
+          "invented": false,
+          "expected": 438,
+          "actual": null
+        },
+        "tax": {
+          "matched": false,
+          "strict_matched": false,
+          "invented": false,
+          "expected": 30.66,
+          "actual": null
+        },
+        "total": {
+          "matched": false,
+          "strict_matched": false,
+          "invented": false,
+          "expected": 468.66,
+          "actual": null
+        },
+        "currency": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "USD",
+          "actual": "USD"
+        },
+        "line_items_count": {
+          "matched": false,
+          "strict_matched": false,
+          "invented": false,
+          "expected": 2,
+          "actual": 4
+        }
+      },
+      "field_accuracy_percentage": 55.6,
+      "strict_field_accuracy_percentage": 55.6,
+      "warnings": [
+        "MISSING_REQUIRED_FIELD: Required field \"total\" is missing or unparseable."
+      ],
+      "errors": [
+        "MISSING_CRITICAL_AMOUNT: Critical financial field \"subtotal\" is missing or could not be parsed."
+      ]
+    },
+    {
+      "id": "V2-018",
+      "filename": "X02_two_sheets.xlsx",
+      "file_type": "xlsx",
+      "is_corrupt": false,
+      "pipeline_status": "warning",
+      "expected_validation_status": "valid",
+      "actual_validation_status": "valid",
+      "status_concordance": true,
+      "ocr_page_count": 0,
+      "ocr_text_available": null,
+      "ocr_confidences": [],
+      "low_quality_ocr_pages": [],
+      "processing_time_ms": 25,
+      "field_evaluations": {
+        "invoice_number": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "INV-2026-802",
+          "actual": "INV-2026-802"
+        },
+        "invoice_date": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "2026-07-11",
+          "actual": "2026-07-11"
+        },
+        "supplier_name": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "Driftwood Furniture Co",
+          "actual": "Driftwood Furniture Co"
+        },
+        "customer_name": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "Seaside Cafe",
+          "actual": "Seaside Cafe"
+        },
+        "subtotal": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": 1380,
+          "actual": 1380
+        },
+        "tax": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": 124.2,
+          "actual": 124.2
+        },
+        "total": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": 1504.2,
+          "actual": 1504.2
+        },
+        "currency": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "USD",
+          "actual": "USD"
+        },
+        "line_items_count": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": 2,
+          "actual": 2
+        }
+      },
+      "field_accuracy_percentage": 100,
+      "strict_field_accuracy_percentage": 100,
+      "warnings": [
+        "Multi-worksheet workbook detected: 2 worksheets preserved."
+      ],
+      "errors": []
+    },
+    {
+      "id": "V2-019",
+      "filename": "X03_merged_title.xlsx",
+      "file_type": "xlsx",
+      "is_corrupt": false,
+      "pipeline_status": "completed",
+      "expected_validation_status": "valid",
+      "actual_validation_status": "invalid",
+      "status_concordance": false,
+      "ocr_page_count": 0,
+      "ocr_text_available": null,
+      "ocr_confidences": [],
+      "low_quality_ocr_pages": [],
+      "processing_time_ms": 17,
+      "field_evaluations": {
+        "invoice_number": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "INV-2026-803",
+          "actual": "INV-2026-803"
+        },
+        "invoice_date": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "2026-07-12",
+          "actual": "2026-07-12"
+        },
+        "supplier_name": {
+          "matched": true,
+          "strict_matched": false,
+          "invented": false,
+          "expected": "Granite Peak Outfitters",
+          "actual": "| Granite Peak Outfitters | Customer: | Basecamp Rentals"
+        },
+        "customer_name": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "Basecamp Rentals",
+          "actual": "| Basecamp Rentals"
+        },
+        "subtotal": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": 1380,
+          "actual": 1380
+        },
+        "tax": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": 82.8,
+          "actual": 82.8
+        },
+        "total": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": 1462.8,
+          "actual": 1462.8
+        },
+        "currency": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "USD",
+          "actual": "USD"
+        },
+        "line_items_count": {
+          "matched": false,
+          "strict_matched": false,
+          "invented": false,
+          "expected": 3,
+          "actual": 5
+        }
+      },
+      "field_accuracy_percentage": 88.9,
+      "strict_field_accuracy_percentage": 77.8,
+      "warnings": [],
+      "errors": [
+        "ARITHMETIC_SUBTOTAL_MISMATCH: Sum of line items (2925.6) does not match stated subtotal (1380). Delta: 1545.6."
+      ]
+    },
+    {
+      "id": "V2-020",
+      "filename": "I01_clean.png",
+      "file_type": "image",
+      "is_corrupt": false,
+      "pipeline_status": "completed",
+      "expected_validation_status": "valid",
+      "actual_validation_status": "valid",
+      "status_concordance": true,
+      "ocr_page_count": 1,
+      "ocr_text_available": true,
+      "ocr_confidences": [
+        0.95
+      ],
+      "low_quality_ocr_pages": [],
+      "processing_time_ms": 3020,
+      "field_evaluations": {
+        "invoice_number": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "INV-2026-901",
+          "actual": "INV-2026-901"
+        },
+        "invoice_date": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "2026-08-01",
+          "actual": "2026-08-01"
+        },
+        "supplier_name": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "Lighthouse Paper Co",
+          "actual": "Lighthouse Paper Co"
+        },
+        "customer_name": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "Evergreen Publishing",
+          "actual": "Evergreen Publishing"
+        },
+        "subtotal": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": 527,
+          "actual": 527
+        },
+        "tax": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": 36.89,
+          "actual": 36.89
+        },
+        "total": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": 563.89,
+          "actual": 563.89
+        },
+        "currency": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "USD",
+          "actual": "USD"
+        },
+        "line_items_count": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": 2,
+          "actual": 2
+        }
+      },
+      "field_accuracy_percentage": 100,
+      "strict_field_accuracy_percentage": 100,
+      "warnings": [],
+      "errors": []
+    },
+    {
+      "id": "V2-021",
+      "filename": "I02_skewed_noisy.png",
+      "file_type": "image",
+      "is_corrupt": false,
+      "pipeline_status": "completed",
+      "expected_validation_status": "valid",
+      "actual_validation_status": "valid",
+      "status_concordance": true,
+      "ocr_page_count": 1,
+      "ocr_text_available": true,
+      "ocr_confidences": [
+        0.88
+      ],
+      "low_quality_ocr_pages": [],
+      "processing_time_ms": 1865,
+      "field_evaluations": {
+        "invoice_number": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "INV-2026-902",
+          "actual": "INV-2026-902"
+        },
+        "invoice_date": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "2026-08-02",
+          "actual": "2026-08-02"
+        },
+        "supplier_name": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "Quarry Stone Works",
+          "actual": "Quarry Stone Works"
+        },
+        "customer_name": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "Hillcrest Landscaping",
+          "actual": "Hillcrest Landscaping"
+        },
+        "subtotal": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": 1335,
+          "actual": 1335
+        },
+        "tax": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": 106.8,
+          "actual": 106.8
+        },
+        "total": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": 1441.8,
+          "actual": 1441.8
+        },
+        "currency": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "USD",
+          "actual": "USD"
+        },
+        "line_items_count": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": 2,
+          "actual": 2
+        }
+      },
+      "field_accuracy_percentage": 100,
+      "strict_field_accuracy_percentage": 100,
+      "warnings": [],
+      "errors": []
+    },
+    {
+      "id": "V2-022",
+      "filename": "I03_low_res.jpg",
+      "file_type": "image",
+      "is_corrupt": false,
+      "pipeline_status": "completed",
+      "expected_validation_status": "valid",
+      "actual_validation_status": "valid",
+      "status_concordance": true,
+      "ocr_page_count": 1,
+      "ocr_text_available": true,
+      "ocr_confidences": [
+        0.91
+      ],
+      "low_quality_ocr_pages": [],
+      "processing_time_ms": 1033,
+      "field_evaluations": {
+        "invoice_number": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "INV-2026-903",
+          "actual": "INV-2026-903"
+        },
+        "invoice_date": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "2026-08-03",
+          "actual": "2026-08-03"
+        },
+        "supplier_name": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "Tanager Electronics",
+          "actual": "Tanager Electronics"
+        },
+        "customer_name": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "Kestrel Labs",
+          "actual": "Kestrel Labs"
+        },
+        "subtotal": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": 360,
+          "actual": 360
+        },
+        "tax": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": 18,
+          "actual": 18
+        },
+        "total": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": 378,
+          "actual": 378
+        },
+        "currency": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "USD",
+          "actual": "USD"
+        },
+        "line_items_count": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": 1,
+          "actual": 1
+        }
+      },
+      "field_accuracy_percentage": 100,
+      "strict_field_accuracy_percentage": 100,
+      "warnings": [],
+      "errors": []
+    },
+    {
+      "id": "V2-023",
+      "filename": "S01_scanned.pdf",
+      "file_type": "scanned_pdf",
+      "is_corrupt": false,
+      "pipeline_status": "warning",
+      "expected_validation_status": "valid",
+      "actual_validation_status": "valid",
+      "status_concordance": true,
+      "ocr_page_count": 1,
+      "ocr_text_available": true,
+      "ocr_confidences": [
+        0.94
+      ],
+      "low_quality_ocr_pages": [],
+      "processing_time_ms": 4583,
+      "field_evaluations": {
+        "invoice_number": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "INV-2026-951",
+          "actual": "INV-2026-951"
+        },
+        "invoice_date": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "2026-08-10",
+          "actual": "2026-08-10"
+        },
+        "supplier_name": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "Orchid Bay Seafood",
+          "actual": "Orchid Bay Seafood"
+        },
+        "customer_name": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "Marina Grill Group",
+          "actual": "Marina Grill Group"
+        },
+        "subtotal": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": 824,
+          "actual": 824
+        },
+        "tax": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": 57.68,
+          "actual": 57.68
+        },
+        "total": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": 881.68,
+          "actual": 881.68
+        },
+        "currency": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "USD",
+          "actual": "USD"
+        },
+        "line_items_count": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": 2,
+          "actual": 2
+        }
+      },
+      "field_accuracy_percentage": 100,
+      "strict_field_accuracy_percentage": 100,
+      "warnings": [
+        "Page 1 contains no extractable PDF text and was routed to OCR."
+      ],
+      "errors": []
+    },
+    {
+      "id": "V2-024",
+      "filename": "S02_scanned_skewed.pdf",
+      "file_type": "scanned_pdf",
+      "is_corrupt": false,
+      "pipeline_status": "warning",
+      "expected_validation_status": "valid",
+      "actual_validation_status": "valid",
+      "status_concordance": true,
+      "ocr_page_count": 1,
+      "ocr_text_available": true,
+      "ocr_confidences": [
+        0.89
+      ],
+      "low_quality_ocr_pages": [],
+      "processing_time_ms": 3109,
+      "field_evaluations": {
+        "invoice_number": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "INV-2026-952",
+          "actual": "INV-2026-952"
+        },
+        "invoice_date": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "2026-08-11",
+          "actual": "2026-08-11"
+        },
+        "supplier_name": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "Silverline Fabrication",
+          "actual": "Silverline Fabrication"
+        },
+        "customer_name": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "Northgate Builders",
+          "actual": "Northgate Builders"
+        },
+        "subtotal": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": 852,
+          "actual": 852
+        },
+        "tax": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": 68.16,
+          "actual": 68.16
+        },
+        "total": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": 920.16,
+          "actual": 920.16
+        },
+        "currency": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": "USD",
+          "actual": "USD"
+        },
+        "line_items_count": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": 1,
+          "actual": 1
+        }
+      },
+      "field_accuracy_percentage": 100,
+      "strict_field_accuracy_percentage": 100,
+      "warnings": [
+        "Page 1 contains no extractable PDF text and was routed to OCR."
+      ],
+      "errors": []
+    },
+    {
+      "id": "V2-025",
+      "filename": "K01_truncated.pdf",
+      "file_type": "pdf",
+      "is_corrupt": true,
+      "pipeline_status": "failed",
+      "expected_validation_status": "failed",
+      "actual_validation_status": "failed",
+      "status_concordance": true,
+      "ocr_page_count": 0,
+      "ocr_text_available": null,
+      "ocr_confidences": [],
+      "low_quality_ocr_pages": [],
+      "processing_time_ms": 0,
+      "field_evaluations": {
+        "invoice_number": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": null,
+          "actual": null
+        },
+        "invoice_date": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": null,
+          "actual": null
+        },
+        "supplier_name": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": null,
+          "actual": null
+        },
+        "customer_name": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": null,
+          "actual": null
+        },
+        "subtotal": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": null,
+          "actual": null
+        },
+        "tax": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": null,
+          "actual": null
+        },
+        "total": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": null,
+          "actual": null
+        },
+        "currency": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": null,
+          "actual": null
+        },
+        "line_items_count": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": null,
+          "actual": null
+        }
+      },
+      "field_accuracy_percentage": 100,
+      "strict_field_accuracy_percentage": 0,
+      "warnings": [],
+      "errors": [
+        "Processing error during PDF parsing: Corrupted PDF: end-of-file marker is missing."
+      ]
+    },
+    {
+      "id": "V2-026",
+      "filename": "K02_random_bytes.pdf",
+      "file_type": "pdf",
+      "is_corrupt": true,
+      "pipeline_status": "failed",
+      "expected_validation_status": "failed",
+      "actual_validation_status": "failed",
+      "status_concordance": true,
+      "ocr_page_count": 0,
+      "ocr_text_available": null,
+      "ocr_confidences": [],
+      "low_quality_ocr_pages": [],
+      "processing_time_ms": 0,
+      "field_evaluations": {
+        "invoice_number": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": null,
+          "actual": null
+        },
+        "invoice_date": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": null,
+          "actual": null
+        },
+        "supplier_name": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": null,
+          "actual": null
+        },
+        "customer_name": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": null,
+          "actual": null
+        },
+        "subtotal": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": null,
+          "actual": null
+        },
+        "tax": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": null,
+          "actual": null
+        },
+        "total": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": null,
+          "actual": null
+        },
+        "currency": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": null,
+          "actual": null
+        },
+        "line_items_count": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": null,
+          "actual": null
+        }
+      },
+      "field_accuracy_percentage": 100,
+      "strict_field_accuracy_percentage": 0,
+      "warnings": [],
+      "errors": [
+        "Processing error during PDF parsing: Corrupted or invalid PDF format: Missing %PDF- header magic bytes."
+      ]
+    },
+    {
+      "id": "V2-027",
+      "filename": "K03_empty.pdf",
+      "file_type": "pdf",
+      "is_corrupt": true,
+      "pipeline_status": "failed",
+      "expected_validation_status": "failed",
+      "actual_validation_status": "failed",
+      "status_concordance": true,
+      "ocr_page_count": 0,
+      "ocr_text_available": null,
+      "ocr_confidences": [],
+      "low_quality_ocr_pages": [],
+      "processing_time_ms": 0,
+      "field_evaluations": {
+        "invoice_number": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": null,
+          "actual": null
+        },
+        "invoice_date": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": null,
+          "actual": null
+        },
+        "supplier_name": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": null,
+          "actual": null
+        },
+        "customer_name": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": null,
+          "actual": null
+        },
+        "subtotal": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": null,
+          "actual": null
+        },
+        "tax": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": null,
+          "actual": null
+        },
+        "total": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": null,
+          "actual": null
+        },
+        "currency": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": null,
+          "actual": null
+        },
+        "line_items_count": {
+          "matched": true,
+          "strict_matched": true,
+          "invented": false,
+          "expected": null,
+          "actual": null
+        }
+      },
+      "field_accuracy_percentage": 100,
+      "strict_field_accuracy_percentage": 0,
+      "warnings": [],
+      "errors": [
+        "File is empty (0 bytes). Document processing requires non-empty data."
+      ]
+    }
+  ]
+}

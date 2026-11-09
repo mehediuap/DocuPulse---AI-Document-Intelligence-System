@@ -3,6 +3,7 @@ import {
   FileProcessingInput,
   SupportedFileType,
   DocumentProcessingStatus,
+  DocumentProcessingProgress,
 } from './types.ts';
 import {
   sanitizeFilename,
@@ -65,7 +66,10 @@ export class DocumentPipeline {
   /**
    * Processes a single file through validation, format detection, and modular parsing.
    */
-  public async processSingleFile(file: FileProcessingInput): Promise<ProcessedDocument> {
+  public async processSingleFile(
+    file: FileProcessingInput,
+    onProgress?: (progress: DocumentProcessingProgress) => void
+  ): Promise<ProcessedDocument> {
     const startTime = performance.now();
     const docId = `doc_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
     const sanitizedName = sanitizeFilename(file.name);
@@ -152,7 +156,7 @@ export class DocumentPipeline {
     try {
       switch (detectedType) {
         case 'pdf': {
-          const pdfRes = await processPdf(buffer, sanitizedName);
+          const pdfRes = await processPdf(buffer, sanitizedName, undefined, onProgress);
           pages = pdfRes.pages;
           rawText = pdfRes.rawText;
           warnings.push(...pdfRes.warnings);
@@ -161,7 +165,7 @@ export class DocumentPipeline {
         }
 
         case 'image': {
-          const imgRes = await processImage(buffer, sanitizedName, file.type);
+          const imgRes = await processImage(buffer, sanitizedName, file.type, undefined, onProgress);
           pages = imgRes.pages;
           rawText = imgRes.rawText;
           warnings.push(...imgRes.warnings);

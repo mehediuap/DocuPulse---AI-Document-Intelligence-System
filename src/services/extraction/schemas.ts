@@ -426,7 +426,7 @@ function parseDecimalOrNull(val: any): number | null {
     }
   }
 
-  let normalized = str;
+  let normalized: string;
   if (decimalSeparator) {
     if (str.length - str.lastIndexOf(decimalSeparator) - 1 > 2) return null;
     const groupingSeparator = decimalSeparator === ',' ? '.' : ',';

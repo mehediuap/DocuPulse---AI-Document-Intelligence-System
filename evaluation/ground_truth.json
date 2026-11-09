@@ -188,5 +188,24 @@
     },
     "expected_validation_status": "failed",
     "description": "Corrupted binary file stream to verify fault-isolation, structured error reporting and zero crashes"
+  },
+  {
+    "id": "DOC-EVAL-011",
+    "filename": "INV-2026-011-NorthstarScanned.pdf",
+    "file_type": "scanned_pdf",
+    "is_corrupt": false,
+    "ground_truth": {
+      "invoice_number": "INV-2026-011",
+      "invoice_date": "2026-04-02",
+      "supplier_name": "Northstar Imaging Supplies",
+      "customer_name": "DocuPulse Evaluation",
+      "subtotal": 640.00,
+      "tax": 64.00,
+      "total": 704.00,
+      "currency": "USD",
+      "line_items_count": 1
+    },
+    "expected_validation_status": "valid",
+    "description": "Image-only PDF invoice rasterized and OCRed page by page with local Tesseract"
   }
 ]

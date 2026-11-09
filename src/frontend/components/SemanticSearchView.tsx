@@ -1,15 +1,11 @@
 import React, { useState } from 'react';
 import { api } from '../api.ts';
-import { DocumentMetadataResponse } from '../../services/api/types.ts';
 import {
   Search,
   Sparkles,
   Loader2,
   FileText,
-  Percent,
-  CheckCircle2,
   ExternalLink,
-  Layers,
 } from 'lucide-react';
 
 interface SemanticSearchViewProps {

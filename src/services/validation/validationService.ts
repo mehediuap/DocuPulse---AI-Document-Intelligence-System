@@ -16,8 +16,6 @@ import {
   addDecimals,
   multiplyDecimals,
   getAbsoluteDelta,
-  roundToTwoDecimals,
-  isWithinTolerance,
 } from './decimalUtils.ts';
 import { DuplicateDetector } from './duplicateDetector.ts';
 
@@ -110,17 +108,15 @@ export class ValidationService {
       manualReviewReasons.push('Total amount missing');
     }
 
-    for (const field of ['subtotal', 'tax'] as const) {
-      if (invoice[field] === null) {
-        issues.push({
-          code: 'MISSING_CRITICAL_AMOUNT',
-          severity: 'error',
-          field,
-          message: `Critical financial field "${field}" is missing or could not be parsed.`,
-          manualReviewReason: `A verified ${field} amount is required before this invoice can be approved.`,
-        });
-        manualReviewReasons.push(`${field} amount missing`);
-      }
+    if (invoice.subtotal === null) {
+      issues.push({
+        code: 'MISSING_CRITICAL_AMOUNT',
+        severity: 'error',
+        field: 'subtotal',
+        message: 'Critical financial field "subtotal" is missing or could not be parsed.',
+        manualReviewReason: 'A verified subtotal amount is required before this invoice can be approved.',
+      });
+      manualReviewReasons.push('subtotal amount missing');
     }
 
     // 2. Currency Validation
@@ -303,8 +299,8 @@ export class ValidationService {
     let isReconciled = false;
     let hasRoundingAdjustment = false;
 
-    if (statedSubtotal !== null && statedTotal !== null) {
-      const taxComponent = statedTax !== null ? statedTax : 0;
+    if (statedSubtotal !== null && statedTotal !== null && statedTax !== null) {
+      const taxComponent = statedTax;
       expectedTotal = addDecimals(statedSubtotal, taxComponent);
       totalDelta = getAbsoluteDelta(statedTotal, expectedTotal);
 
@@ -337,10 +333,54 @@ export class ValidationService {
         });
         manualReviewReasons.push('Subtotal and tax do not reconcile to total');
       }
+    } else if (statedSubtotal !== null && statedTotal !== null) {
+      expectedTotal = statedSubtotal;
+      totalDelta = getAbsoluteDelta(statedTotal, statedSubtotal);
+      if (totalDelta <= config.roundingTolerance) {
+        isReconciled = true;
+      } else {
+        issues.push({
+          code: 'TAX_MISSING_CANNOT_RECONCILE',
+          severity: 'warning',
+          field: 'tax',
+          message: `Total (${statedTotal}) differs from subtotal (${statedSubtotal}) by ${totalDelta} but no tax amount was extracted, so the invoice cannot be reconciled.`,
+          actualValue: statedTotal,
+          expectedValue: statedSubtotal,
+          delta: totalDelta,
+          manualReviewReason: 'Tax amount is missing; total cannot be verified against subtotal.',
+        });
+        manualReviewReasons.push('Tax missing; total cannot be reconciled');
+      }
+    } else if (statedSubtotal === null && statedTax !== null &&
+      statedTotal !== null && lineItemsCalculatedSum !== null) {
+      expectedTotal = addDecimals(lineItemsCalculatedSum, statedTax);
+      totalDelta = getAbsoluteDelta(statedTotal, expectedTotal);
+      if (totalDelta <= config.roundingTolerance) {
+        isReconciled = true;
+      } else {
+        issues.push({
+          code: 'ARITHMETIC_TOTAL_MISMATCH',
+          severity: 'error',
+          field: 'total',
+          message: `Line items (${lineItemsCalculatedSum}) + Tax (${statedTax}) = ${expectedTotal}, but stated Total is ${statedTotal}. Delta: ${totalDelta}.`,
+          actualValue: statedTotal,
+          expectedValue: expectedTotal,
+          delta: totalDelta,
+          evidenceSnippet: invoice.evidence?.total?.snippet,
+          manualReviewReason: `Financial reconciliation failed: line items + tax (${expectedTotal}) != Total (${statedTotal}).`,
+        });
+        manualReviewReasons.push('Line items and tax do not reconcile to total');
+      }
     } else if (statedTotal !== null && statedSubtotal === null && statedTax === null) {
-      // Single total without itemized subtotal/tax
-      isReconciled = true;
+      isReconciled = false;
       expectedTotal = statedTotal;
+      issues.push({
+        code: 'RECONCILIATION_NOT_POSSIBLE',
+        severity: 'info',
+        field: 'total',
+        message: 'Only a total was found (no subtotal or tax), so the arithmetic could not be verified.',
+        actualValue: statedTotal,
+      });
     }
 
     // 8. Duplicate Invoice Candidate Detection

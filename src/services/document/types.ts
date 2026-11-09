@@ -12,7 +12,16 @@ export interface PageContent {
   lineCount: number;
   isOcr?: boolean;
   confidence?: number | null;
+  isLowQuality?: boolean;
   lines?: string[];
+}
+
+export interface DocumentProcessingProgress {
+  pageNumber: number;
+  totalPages: number;
+  completedPages: number;
+  progress: number;
+  stage: 'text-extraction' | 'ocr';
 }
 
 export interface SheetContent {

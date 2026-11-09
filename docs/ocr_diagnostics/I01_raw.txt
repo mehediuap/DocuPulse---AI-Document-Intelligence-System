@@ -1,0 +1,15 @@
+INVOICE
+
+Invoice No: INV-2026-901
+Date: 2026-08-01
+
+Supplier: Lighthouse Paper Co
+
+Customer: Evergreen Publishing
+
+Paperream 40 6.50 260.00
+Toner 3 89.00 267.00
+
+Subtotal: 527.00
+Tax: 36.89
+Total: 563.89 USD

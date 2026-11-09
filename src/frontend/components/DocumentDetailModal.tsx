@@ -2,8 +2,6 @@ import React, { useState } from 'react';
 import {
   DocumentResultResponse,
   DocumentMetadataResponse,
-  JobStatus,
-  AuditEntry,
 } from '../../services/api/types.ts';
 import {
   X,
@@ -11,8 +9,6 @@ import {
   CheckCircle2,
   AlertTriangle,
   XCircle,
-  Clock,
-  Layers,
   Edit3,
   FileText,
   DollarSign,
@@ -20,12 +16,10 @@ import {
   Building,
   User,
   Hash,
-  List,
   Save,
   ShieldAlert,
   History,
   Loader2,
-  Info,
 } from 'lucide-react';
 
 interface DocumentDetailModalProps {

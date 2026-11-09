@@ -1,0 +1,515 @@
+[
+  {
+    "filename": "D01_standard_us.pdf",
+    "file_type": "pdf",
+    "is_corrupt": false,
+    "ground_truth": {
+      "invoice_number": "INV-2026-101",
+      "invoice_date": "2026-04-02",
+      "supplier_name": "Harborview Marine Supplies Inc",
+      "customer_name": "Lakeside Boating Club",
+      "subtotal": 120.0,
+      "tax": 9.6,
+      "total": 129.6,
+      "currency": "USD",
+      "line_items_count": 2
+    },
+    "expected_validation_status": "valid",
+    "description": "Baseline US-style digital PDF",
+    "id": "V2-001"
+  },
+  {
+    "filename": "D02_labels_gbp.pdf",
+    "file_type": "pdf",
+    "is_corrupt": false,
+    "ground_truth": {
+      "invoice_number": "2026/0457",
+      "invoice_date": "2026-04-14",
+      "supplier_name": "Kestrel Office Furniture Ltd",
+      "customer_name": "Brightpath Accounting",
+      "subtotal": 690.0,
+      "tax": 138.0,
+      "total": 828.0,
+      "currency": "GBP",
+      "line_items_count": 2
+    },
+    "expected_validation_status": "valid",
+    "description": "Different labels, long-form date, GBP shown only as a pound sign",
+    "id": "V2-002"
+  },
+  {
+    "filename": "D03_german_eur.pdf",
+    "file_type": "pdf",
+    "is_corrupt": false,
+    "ground_truth": {
+      "invoice_number": "RE-88231",
+      "invoice_date": "2026-05-03",
+      "supplier_name": "Nordlicht Werkzeuge GmbH",
+      "customer_name": "Baumeister Schulz AG",
+      "subtotal": 1000.0,
+      "tax": 190.0,
+      "total": 1190.0,
+      "currency": "EUR",
+      "line_items_count": 2
+    },
+    "expected_validation_status": "valid",
+    "description": "German labels, dd.mm.yyyy date, European number format, EUR symbol",
+    "id": "V2-003"
+  },
+  {
+    "filename": "D04_bdt.pdf",
+    "file_type": "pdf",
+    "is_corrupt": false,
+    "ground_truth": {
+      "invoice_number": "DHK-2026-0912",
+      "invoice_date": "2026-04-21",
+      "supplier_name": "Padma Textile Mills Ltd",
+      "customer_name": "Dhaka Garments Export Co",
+      "subtotal": 165000.0,
+      "tax": 24750.0,
+      "total": 189750.0,
+      "currency": "BDT",
+      "line_items_count": 2
+    },
+    "expected_validation_status": "valid",
+    "description": "BDT amounts with a currency prefix, dd/mm/yyyy date",
+    "id": "V2-004"
+  },
+  {
+    "filename": "D05_no_customer.pdf",
+    "file_type": "pdf",
+    "is_corrupt": false,
+    "ground_truth": {
+      "invoice_number": "INV-2026-205",
+      "invoice_date": "2026-05-10",
+      "supplier_name": "Greenfield Organics LLC",
+      "customer_name": null,
+      "subtotal": 292.5,
+      "tax": 20.48,
+      "total": 312.98,
+      "currency": "USD",
+      "line_items_count": 1
+    },
+    "expected_validation_status": "needs_review",
+    "description": "No customer/bill-to on the invoice; must be null, not invented",
+    "id": "V2-005"
+  },
+  {
+    "filename": "D06_tax_free.pdf",
+    "file_type": "pdf",
+    "is_corrupt": false,
+    "ground_truth": {
+      "invoice_number": "TF-0099",
+      "invoice_date": "2026-05-11",
+      "supplier_name": "Riverstone Consulting",
+      "customer_name": "Cobalt Startups",
+      "subtotal": 1500.0,
+      "tax": null,
+      "total": 1500.0,
+      "currency": "USD",
+      "line_items_count": 1
+    },
+    "expected_validation_status": "valid",
+    "description": "Tax-free invoice: no tax line, so tax must be null; subtotal equals total",
+    "id": "V2-006"
+  },
+  {
+    "filename": "D07_math_error.pdf",
+    "file_type": "pdf",
+    "is_corrupt": false,
+    "ground_truth": {
+      "invoice_number": "INV-2026-307",
+      "invoice_date": "2026-05-20",
+      "supplier_name": "Summit Lab Equipment Co",
+      "customer_name": "Pinecrest Clinic",
+      "subtotal": 100.0,
+      "tax": 10.0,
+      "total": 115.0,
+      "currency": "USD",
+      "line_items_count": 1
+    },
+    "expected_validation_status": "invalid",
+    "description": "Printed total (115.00) does not equal subtotal + tax (110.00)",
+    "id": "V2-007"
+  },
+  {
+    "filename": "D08_multipage.pdf",
+    "file_type": "pdf",
+    "is_corrupt": false,
+    "ground_truth": {
+      "invoice_number": "INV-2026-410",
+      "invoice_date": "2026-06-01",
+      "supplier_name": "Atlas Industrial Parts Co",
+      "customer_name": "Foundry Works Ltd",
+      "subtotal": 1038.24,
+      "tax": 83.06,
+      "total": 1121.3,
+      "currency": "USD",
+      "line_items_count": 10
+    },
+    "expected_validation_status": "valid",
+    "description": "Two-page invoice; line items split across pages; totals on page 2",
+    "id": "V2-008"
+  },
+  {
+    "filename": "D09_table_layout.pdf",
+    "file_type": "pdf",
+    "is_corrupt": false,
+    "ground_truth": {
+      "invoice_number": "INV-2026-512",
+      "invoice_date": "2026-06-08",
+      "supplier_name": "Bluebird Print Studio",
+      "customer_name": "Harlow & Finch Attorneys",
+      "subtotal": 490.0,
+      "tax": 40.43,
+      "total": 530.43,
+      "currency": "USD",
+      "line_items_count": 5
+    },
+    "expected_validation_status": "valid",
+    "description": "Table layout where each cell is its own text object",
+    "id": "V2-009"
+  },
+  {
+    "filename": "D10_bill_wording.pdf",
+    "file_type": "pdf",
+    "is_corrupt": false,
+    "ground_truth": {
+      "invoice_number": "B-7781",
+      "invoice_date": "2026-06-01",
+      "supplier_name": "Maple Street Bakery",
+      "customer_name": "City Cafe Network",
+      "subtotal": 408.0,
+      "tax": 20.4,
+      "total": 428.4,
+      "currency": "USD",
+      "line_items_count": 3
+    },
+    "expected_validation_status": "valid",
+    "description": "'Bill' wording (Bill No / From / To), identifier without an INV prefix",
+    "id": "V2-010"
+  },
+  {
+    "filename": "D11_duplicate_of_D01.pdf",
+    "file_type": "pdf",
+    "is_corrupt": false,
+    "ground_truth": {
+      "invoice_number": "INV-2026-101",
+      "invoice_date": "2026-04-02",
+      "supplier_name": "Harborview Marine Supplies Inc",
+      "customer_name": "Lakeside Boating Club",
+      "subtotal": 120.0,
+      "tax": 9.6,
+      "total": 129.6,
+      "currency": "USD",
+      "line_items_count": 2
+    },
+    "expected_validation_status": "needs_review",
+    "description": "Same supplier and invoice number as D01: must be flagged as a duplicate",
+    "id": "V2-011"
+  },
+  {
+    "filename": "D12_numeric_number.pdf",
+    "file_type": "pdf",
+    "is_corrupt": false,
+    "ground_truth": {
+      "invoice_number": "4471",
+      "invoice_date": "2026-06-15",
+      "supplier_name": "Ocean Freight Partners Co",
+      "customer_name": "Delta Imports",
+      "subtotal": 2550.0,
+      "tax": 0.0,
+      "total": 2550.0,
+      "currency": "USD",
+      "line_items_count": 1
+    },
+    "expected_validation_status": "valid",
+    "description": "Purely numeric invoice number, 'Jun 15, 2026' date, zero tax printed",
+    "id": "V2-012"
+  },
+  {
+    "filename": "D13_distractors.pdf",
+    "file_type": "pdf",
+    "is_corrupt": false,
+    "ground_truth": {
+      "invoice_number": "INV-2026-618",
+      "invoice_date": "2026-06-15",
+      "supplier_name": "Crescent Logistics Group",
+      "customer_name": "Aurora Retail Partners",
+      "subtotal": 291.0,
+      "tax": 29.1,
+      "total": 320.1,
+      "currency": "USD",
+      "line_items_count": 2
+    },
+    "expected_validation_status": "valid",
+    "description": "Due date, PO number, phone and VAT ids near the real fields",
+    "id": "V2-013"
+  },
+  {
+    "filename": "C01_keyvalue.csv",
+    "file_type": "csv",
+    "is_corrupt": false,
+    "ground_truth": {
+      "invoice_number": "INV-2026-701",
+      "invoice_date": "2026-07-01",
+      "supplier_name": "Tidewater Chemicals Inc",
+      "customer_name": "Orchard Farms LLC",
+      "subtotal": 560.0,
+      "tax": 44.8,
+      "total": 604.8,
+      "currency": "USD",
+      "line_items_count": 2
+    },
+    "expected_validation_status": "valid",
+    "description": "Key/value CSV with an item table and totals rows",
+    "id": "V2-014"
+  },
+  {
+    "filename": "C02_single_row.csv",
+    "file_type": "csv",
+    "is_corrupt": false,
+    "ground_truth": {
+      "invoice_number": "INV-2026-702",
+      "invoice_date": "2026-07-02",
+      "supplier_name": "Falcon Roofing Supply",
+      "customer_name": "Ridgeview Homes",
+      "subtotal": 3200.0,
+      "tax": 192.0,
+      "total": 3392.0,
+      "currency": "USD",
+      "line_items_count": 0
+    },
+    "expected_validation_status": "valid",
+    "description": "One-row CSV with a header row; no line items",
+    "id": "V2-015"
+  },
+  {
+    "filename": "C03_semicolon_eu.csv",
+    "file_type": "csv",
+    "is_corrupt": false,
+    "ground_truth": {
+      "invoice_number": "RE-9001",
+      "invoice_date": "2026-07-03",
+      "supplier_name": "Rheintal Maschinenbau GmbH",
+      "customer_name": "Alpenblick Hotels AG",
+      "subtotal": 1350.0,
+      "tax": 256.5,
+      "total": 1606.5,
+      "currency": "EUR",
+      "line_items_count": 2
+    },
+    "expected_validation_status": "valid",
+    "description": "Semicolon CSV, German labels, decimal commas",
+    "id": "V2-016"
+  },
+  {
+    "filename": "X01_single_sheet.xlsx",
+    "file_type": "xlsx",
+    "is_corrupt": false,
+    "ground_truth": {
+      "invoice_number": "INV-2026-801",
+      "invoice_date": "2026-07-10",
+      "supplier_name": "Copperline Electrical Supply",
+      "customer_name": "Westbank Apartments",
+      "subtotal": 438.0,
+      "tax": 30.66,
+      "total": 468.66,
+      "currency": "USD",
+      "line_items_count": 2
+    },
+    "expected_validation_status": "valid",
+    "description": "Single-sheet workbook, label/value header block + item table",
+    "id": "V2-017"
+  },
+  {
+    "filename": "X02_two_sheets.xlsx",
+    "file_type": "xlsx",
+    "is_corrupt": false,
+    "ground_truth": {
+      "invoice_number": "INV-2026-802",
+      "invoice_date": "2026-07-11",
+      "supplier_name": "Driftwood Furniture Co",
+      "customer_name": "Seaside Cafe",
+      "subtotal": 1380.0,
+      "tax": 124.2,
+      "total": 1504.2,
+      "currency": "USD",
+      "line_items_count": 2
+    },
+    "expected_validation_status": "valid",
+    "description": "Header and Items on separate sheets",
+    "id": "V2-018"
+  },
+  {
+    "filename": "X03_merged_title.xlsx",
+    "file_type": "xlsx",
+    "is_corrupt": false,
+    "ground_truth": {
+      "invoice_number": "INV-2026-803",
+      "invoice_date": "2026-07-12",
+      "supplier_name": "Granite Peak Outfitters",
+      "customer_name": "Basecamp Rentals",
+      "subtotal": 1380.0,
+      "tax": 82.8,
+      "total": 1462.8,
+      "currency": "USD",
+      "line_items_count": 3
+    },
+    "expected_validation_status": "valid",
+    "description": "Merged title cell, header values side by side",
+    "id": "V2-019"
+  },
+  {
+    "filename": "I01_clean.png",
+    "file_type": "image",
+    "is_corrupt": false,
+    "ground_truth": {
+      "invoice_number": "INV-2026-901",
+      "invoice_date": "2026-08-01",
+      "supplier_name": "Lighthouse Paper Co",
+      "customer_name": "Evergreen Publishing",
+      "subtotal": 527.0,
+      "tax": 36.89,
+      "total": 563.89,
+      "currency": "USD",
+      "line_items_count": 2
+    },
+    "expected_validation_status": "valid",
+    "description": "Clean rendered invoice image (needs OCR)",
+    "id": "V2-020"
+  },
+  {
+    "filename": "I02_skewed_noisy.png",
+    "file_type": "image",
+    "is_corrupt": false,
+    "ground_truth": {
+      "invoice_number": "INV-2026-902",
+      "invoice_date": "2026-08-02",
+      "supplier_name": "Quarry Stone Works",
+      "customer_name": "Hillcrest Landscaping",
+      "subtotal": 1335.0,
+      "tax": 106.8,
+      "total": 1441.8,
+      "currency": "USD",
+      "line_items_count": 2
+    },
+    "expected_validation_status": "valid",
+    "description": "3 degree skew, noise and blur (needs OCR)",
+    "id": "V2-021"
+  },
+  {
+    "filename": "I03_low_res.jpg",
+    "file_type": "image",
+    "is_corrupt": false,
+    "ground_truth": {
+      "invoice_number": "INV-2026-903",
+      "invoice_date": "2026-08-03",
+      "supplier_name": "Tanager Electronics",
+      "customer_name": "Kestrel Labs",
+      "subtotal": 360.0,
+      "tax": 18.0,
+      "total": 378.0,
+      "currency": "USD",
+      "line_items_count": 1
+    },
+    "expected_validation_status": "valid",
+    "description": "Low resolution, heavy JPEG compression (needs OCR)",
+    "id": "V2-022"
+  },
+  {
+    "filename": "S01_scanned.pdf",
+    "file_type": "scanned_pdf",
+    "is_corrupt": false,
+    "ground_truth": {
+      "invoice_number": "INV-2026-951",
+      "invoice_date": "2026-08-10",
+      "supplier_name": "Orchid Bay Seafood",
+      "customer_name": "Marina Grill Group",
+      "subtotal": 824.0,
+      "tax": 57.68,
+      "total": 881.68,
+      "currency": "USD",
+      "line_items_count": 2
+    },
+    "expected_validation_status": "valid",
+    "description": "Image-only PDF (no text layer): needs OCR",
+    "id": "V2-023"
+  },
+  {
+    "filename": "S02_scanned_skewed.pdf",
+    "file_type": "scanned_pdf",
+    "is_corrupt": false,
+    "ground_truth": {
+      "invoice_number": "INV-2026-952",
+      "invoice_date": "2026-08-11",
+      "supplier_name": "Silverline Fabrication",
+      "customer_name": "Northgate Builders",
+      "subtotal": 852.0,
+      "tax": 68.16,
+      "total": 920.16,
+      "currency": "USD",
+      "line_items_count": 1
+    },
+    "expected_validation_status": "valid",
+    "description": "Skewed image-only PDF: needs OCR",
+    "id": "V2-024"
+  },
+  {
+    "filename": "K01_truncated.pdf",
+    "file_type": "pdf",
+    "is_corrupt": true,
+    "ground_truth": {
+      "invoice_number": null,
+      "invoice_date": null,
+      "supplier_name": null,
+      "customer_name": null,
+      "subtotal": null,
+      "tax": null,
+      "total": null,
+      "currency": null,
+      "line_items_count": null
+    },
+    "expected_validation_status": "failed",
+    "description": "PDF cut off at 55%: no %%EOF",
+    "id": "V2-025"
+  },
+  {
+    "filename": "K02_random_bytes.pdf",
+    "file_type": "pdf",
+    "is_corrupt": true,
+    "ground_truth": {
+      "invoice_number": null,
+      "invoice_date": null,
+      "supplier_name": null,
+      "customer_name": null,
+      "subtotal": null,
+      "tax": null,
+      "total": null,
+      "currency": null,
+      "line_items_count": null
+    },
+    "expected_validation_status": "failed",
+    "description": "Random bytes with a .pdf extension",
+    "id": "V2-026"
+  },
+  {
+    "filename": "K03_empty.pdf",
+    "file_type": "pdf",
+    "is_corrupt": true,
+    "ground_truth": {
+      "invoice_number": null,
+      "invoice_date": null,
+      "supplier_name": null,
+      "customer_name": null,
+      "subtotal": null,
+      "tax": null,
+      "total": null,
+      "currency": null,
+      "line_items_count": null
+    },
+    "expected_validation_status": "failed",
+    "description": "Zero-byte file",
+    "id": "V2-027"
+  }
+]

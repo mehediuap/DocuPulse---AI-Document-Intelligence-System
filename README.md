@@ -62,7 +62,9 @@ Transforms raw unformatted document text into validated, schema-compliant JSON s
 Copy `.env.example` to `.env` and set `GEMINI_API_KEY` for Gemini API key authentication. The Google project ID and number are included as project metadata; Vertex AI uses the project ID and `GOOGLE_CLOUD_LOCATION` (default `us-central1`) with Application Default Credentials. Runtime configuration is guarded so importing the OCR or extraction modules in a browser does not access Node.js environment globals.
 
 ### OCR Provider Configuration
-`OCR_PROVIDER=auto` tries Gemini Vision when credentials are configured, then uses Tesseract.js for raster images and rendered PDF pages. `OCR_PROVIDER=tesseract` forces local Tesseract. Images are normalized, grayscaled, sharpened, and retried with a high-contrast variant when confidence is low; if enhancement fails, OCR falls back to the original image, and a failed OCR variant does not prevent trying the next one. Tesseract downloads worker/language assets on first use unless `TESSERACT_LANG_PATH`, `TESSERACT_WORKER_PATH`, `TESSERACT_CORE_PATH`, and `TESSERACT_CACHE_PATH` point to self-hosted assets. Gemini does not return calibrated OCR confidence, so those extracted fields are conservatively flagged for review.
+`OCR_PROVIDER=auto` (the default) runs local Tesseract.js first for every image and each textless PDF page. Gemini Vision is an optional per-page fallback only when the measured Tesseract confidence is below 65% and a non-placeholder `GEMINI_API_KEY` is configured. `OCR_PROVIDER=tesseract` disables cloud fallback. Image preprocessing applies grayscale normalization, small-image upscaling, median denoising, projection-based deskewing, and local adaptive thresholding before page OCR. Each OCR page records its measured Tesseract confidence, pages below 65% are flagged for review, and page progress is available through the document pipeline progress callback. Tesseract downloads worker/language assets on first use unless `TESSERACT_LANG_PATH`, `TESSERACT_WORKER_PATH`, `TESSERACT_CORE_PATH`, and `TESSERACT_CACHE_PATH` point to self-hosted assets. Gemini does not return calibrated OCR confidence, so a Gemini fallback transcript remains flagged for review.
+
+Run the local OCR benchmark, which generates its fixtures and evaluates both the PNG image and image-only scanned PDF, with `npm run evaluate:v2`. It writes measured results to `docs/evaluation_metrics_v2.json` and `docs/evaluation_report_v2.md`.
 
 ### Sensitive Data Protection
 By default, full invoice contents are excluded from standard system logs. Redacted summaries are output instead (`[REDACTED]`). Sensitive content logging can be enabled in isolated debug environments via `ENABLE_SENSITIVE_LOGGING="true"`.
@@ -85,7 +87,9 @@ A standalone, deterministic validation service that validates business rules, da
 | Issue Code | Severity | Description |
 | :--- | :--- | :--- |
 | `MISSING_REQUIRED_FIELD` | `warning` | Mandatory field (`invoice_number`, `invoice_date`, `supplier_name`, `total`) is null and needs human review (`needs_review`, not `invalid`). |
-| `MISSING_CRITICAL_AMOUNT` | `error` | Missing `subtotal` or `tax` is an unresolved financial field and blocks approval. |
+| `MISSING_CRITICAL_AMOUNT` | `error` | Missing subtotal is an unresolved financial field and blocks approval. |
+| `TAX_MISSING_CANNOT_RECONCILE` | `warning` | Missing tax prevents tax-based reconciliation; it is not assumed to be zero. |
+| `RECONCILIATION_NOT_POSSIBLE` | `warning` | Available amounts are insufficient to establish the invoice arithmetic. |
 | `FIELD_UNCERTAIN` | `warning` | Field extracted with confidence below threshold (`< 0.70`). |
 | `INVALID_DATE_FORMAT` | `error` | Date cannot be parsed into a calendar date (e.g. `2026-02-31`). |
 | `FUTURE_DATE_WARNING` | `warning` | Issue date is more than grace period (7 days) in the future. |
@@ -101,7 +105,7 @@ A standalone, deterministic validation service that validates business rules, da
 
 ### Financial Reconciliation & Decimal Safety
 All calculations use integer cents arithmetic (`toCents`, `fromCents`, `addDecimals`, `subtractDecimals`) to prevent IEEE-754 precision drift.
-- **Subtotal + Tax Reconciliation:** `expectedTotal = subtotal + tax`; missing subtotal or tax is an error rather than an implicit zero.
+- **Subtotal + Tax Reconciliation:** `expectedTotal = subtotal + tax` only when both values are present; missing tax is never treated as zero and prevents reconciliation.
 - **Strict amount parsing:** Malformed amount errors survive schema normalization and remain validation errors. Extracted evidence snippets are checked against parsed document text, and unverifiable evidence is marked uncertain for review.
 - **Rounding Tolerance:** Defaults to `$0.05` (5 cents). Deltas $\le \$0.05$ reconcile with a minor rounding notice; deltas $> \$0.05$ trigger `ARITHMETIC_TOTAL_MISMATCH`.
 
@@ -141,7 +145,7 @@ Manual adjustments via `PATCH /api/v1/documents/{id}/corrections` are recorded w
 
 ### Authentication & Deployment Disclosure
 The frontend includes an API-token control that stores the configured token in the current browser session and attaches it to protected API requests. Do not place production tokens in `VITE_*` build variables because those values are exposed in the client bundle.
-Document API routes accept `Authorization: Bearer <token>`. Configure `DOCUPULSE_API_TOKENS` as a JSON object mapping high-entropy tokens (minimum 32 characters) to actor IDs. The authenticated actor ID is attached to manual-correction audit entries; caller-supplied actor headers are not trusted. In development only, an empty token registry uses `local-development-user`; in production an empty registry returns `503` and document API requests are not served. This lightweight token mapping is not a substitute for user lifecycle management, role-based authorization, tenant isolation, TLS termination, or token rotation.
+Document API routes accept bearer authentication. Configure `DOCUPULSE_API_TOKENS` as a JSON object mapping high-entropy tokens (minimum 32 characters) to actor IDs; `DOCUPULSE_API_KEY` can also enable shared-key authentication. The authenticated actor ID is attached to manual-correction audit entries; caller-supplied actor headers are not trusted. In development, requests may use the local-development identity when authentication is not configured; production fails closed when credentials are not configured. This lightweight token mapping is not a substitute for user lifecycle management, role-based authorization, tenant isolation, TLS termination, or token rotation.
 
 ---
 
@@ -305,14 +309,16 @@ The frontend provides an accessible, responsive single-page web dashboard integr
   - **Manual Correction Tab**: Interactive auditor correction form allowing field selection, current value display, new value entry, required audit justification, and immediate re-validation toggle calling `PATCH /api/v1/documents/:id/corrections`.
   - **Audit Trail Tab**: Chronological audit log showing previous value → new value, modification timestamp, author, and reason.
   - **Retry Action**: One-click safe retry calling `POST /api/v1/documents/:id/retry` with concurrency locks.
-- **Automated Verification Suite Runner**: Built-in visual test runner executing hermetic verification checks across Modules 1, 2, and 3 directly inside the browser.
+- **Automated Verification Suite**: Run the Node.js-only document-processing, extraction, validation, API, and database checks from the terminal with `npm test`; these tests are intentionally kept out of the browser bundle.
 - **Configuration**: Driven by `VITE_API_BASE_URL` in `.env` (defaults to relative `/api/v1` for same-origin deployment).
 
 ---
 
 ## Module 7: Testing & Empirical Evaluation (Task 7)
 
-DocuPulse features a 57-test hermetic unit/integration regression suite and a dedicated empirical benchmark runner evaluating ingestion, extraction, and validation accuracy against a labeled ground-truth dataset (`evaluation/ground_truth.json`).
+DocuPulse features a hermetic unit/integration regression suite and a dedicated empirical benchmark runner evaluating ingestion, extraction, and validation accuracy against a labeled ground-truth dataset (`evaluation/ground_truth.json`).
+
+The independent realistic dataset is generated with `npm run dataset:independent` after installing its Python dependencies (`pip install reportlab openpyxl pillow`). Run `npm run evaluate:independent` to evaluate PDFs, images, scanned PDFs, spreadsheets, and corruption cases with deterministic extraction and local Tesseract OCR. Its CLI also accepts `--dataset`, `--ground-truth`, `--skip`, and `--output`; strict field matching and invented-value counts are included in the report. Results are written to `docs/evaluation_metrics_independent.json` and `docs/evaluation_report_independent.md`; they are separate from the OCR-focused `evaluate:v2` report.
 
 ### Empirical Benchmark Results Summary
 
@@ -325,7 +331,7 @@ These metrics reflect **actual measured numbers** generated by `npm run evaluate
 | **Overall Field Extraction Accuracy** | **87.7%** | 71 of 81 field evaluations exactly matched ground truth |
 | **OCR Ground-Truth Field Accuracy** | **0% (0/9)** | OCR provider is not configured; no image invoice values were inferred |
 | **Mean Processing Latency** | **85 ms** | Measured wall-clock time per document (min: 1 ms, max: 249 ms, p95: 249 ms) |
-| **Automated Unit & Integration Tests** | **61 / 61 PASS** | Modules 1–5; offline test suite |
+| **Automated Unit & Integration Tests** | **121 / 121 PASS** | All six test modules; offline test suite |
 
 ### Field-Level Extraction Accuracy
 

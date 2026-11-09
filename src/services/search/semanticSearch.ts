@@ -15,12 +15,13 @@ import { createHash } from 'node:crypto';
 import { createGoogleGenAIClient } from '../extraction/googleGenAIConfig.ts';
 import { DocumentRecord } from '../api/types.ts';
 import { DocumentRepository, documentRepository } from '../../db/repository.ts';
+import { PublicDocument, toPublicDocument } from '../api/publicDocument.ts';
 
 export interface SemanticSearchResult {
   documentId: string;
   similarityScore: number;
   matchedSnippet?: string;
-  document: Omit<DocumentRecord, 'rawBuffer' | 'storagePath'>;
+  document: PublicDocument;
 }
 
 export interface SemanticSearchResponse {
@@ -116,12 +117,11 @@ export class SemanticSearchService {
       if (docVector && docVector.length === queryVector.length) {
         const similarity = cosineSimilarity(queryVector, docVector);
         if (similarity >= minSimilarity) {
-          const { rawBuffer, storagePath, ...safeDocument } = doc;
           scored.push({
             documentId: doc.id,
             similarityScore: Math.round(similarity * 1000) / 1000,
             matchedSnippet: textToEmbed.substring(0, 180).replace(/\n+/g, ' '),
-            document: safeDocument,
+            document: toPublicDocument(doc),
           });
         }
       }

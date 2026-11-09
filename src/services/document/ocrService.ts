@@ -1,6 +1,8 @@
 import type { GoogleGenAI } from '@google/genai';
 import { createGoogleGenAIClient } from '../extraction/googleGenAIConfig.ts';
 
+export const OCR_LOW_CONFIDENCE_THRESHOLD = 0.65;
+
 export interface OcrResult {
   text: string;
   confidence: number | null;
@@ -32,14 +34,26 @@ export class OcrService {
 
   public constructor(
     private readonly createTesseractWorker: TesseractWorkerFactory = async () => {
-      const { createWorker } = await import('tesseract.js');
+      const { createWorker, PSM } = await import('tesseract.js');
       const env = getRuntimeEnvironment();
       const workerOptions: Record<string, string> = {};
       if (env.TESSERACT_LANG_PATH) workerOptions.langPath = env.TESSERACT_LANG_PATH;
       if (env.TESSERACT_WORKER_PATH) workerOptions.workerPath = env.TESSERACT_WORKER_PATH;
       if (env.TESSERACT_CORE_PATH) workerOptions.corePath = env.TESSERACT_CORE_PATH;
-      if (env.TESSERACT_CACHE_PATH) workerOptions.cachePath = env.TESSERACT_CACHE_PATH;
-      return createWorker('eng', 1, workerOptions);
+      if (typeof process !== 'undefined' && process.versions?.node) {
+        const tempDirectory = (env.TEMP || env.TMPDIR || env.TMP || process.cwd())
+          .replace(/[\\/]+$/, '');
+        const cachePath = env.TESSERACT_CACHE_PATH || `${tempDirectory}/docupulse-tesseract`;
+        const filesystemPackage = 'node:fs/promises';
+        const { mkdir } = await import(/* @vite-ignore */ filesystemPackage);
+        await mkdir(cachePath, { recursive: true });
+        workerOptions.cachePath = cachePath;
+      } else if (env.TESSERACT_CACHE_PATH) {
+        workerOptions.cachePath = env.TESSERACT_CACHE_PATH;
+      }
+      const worker = await createWorker('eng', 1, workerOptions);
+      await worker.setParameters({ tessedit_pageseg_mode: PSM.AUTO });
+      return worker;
     },
     private readonly transcribeWithGemini?: GeminiOcrTranscriber
   ) {}
@@ -52,13 +66,12 @@ export class OcrService {
   public async performOcr(
     data: Uint8Array | string,
     options: OcrOptions = {},
-    fallbackImage?: Uint8Array
+    fallbackImage?: Uint8Array | readonly Uint8Array[]
   ): Promise<OcrResult> {
     const warnings: string[] = [];
     const env = getRuntimeEnvironment();
     const configuredProvider = env.OCR_PROVIDER?.trim().toLowerCase();
-    const provider = configuredProvider ||
-      (typeof process === 'undefined' || env.EXTRACTION_MODE === 'mock' ? 'mock' : 'auto');
+    const provider = configuredProvider || 'auto';
 
     if (!['auto', 'gemini', 'tesseract', 'mock'].includes(provider)) {
       throw new Error('OCR_PROVIDER must be one of: auto, gemini, tesseract, mock.');
@@ -69,99 +82,100 @@ export class OcrService {
       return this.createResult(this.generateDiagnosticNotice(options), 0, 'fallback_diagnostic', warnings);
     }
 
-    const isPdf = options.mimeType?.toLowerCase().includes('pdf') === true;
-    const shouldTryGemini = provider === 'gemini' || provider === 'auto';
-    if (shouldTryGemini) {
-      try {
-        const base64Data = typeof data === 'string'
-          ? (data.startsWith('data:') ? data.slice(data.indexOf(',') + 1) : data)
-          : Buffer.from(data).toString('base64');
-        if (base64Data.length <= 50) throw new Error('OCR input is empty or too small.');
+    let best: { text: string; confidence: number | null } | null = null;
+    const image = typeof data === 'string'
+      ? Buffer.from(data.startsWith('data:') ? data.slice(data.indexOf(',') + 1) : data, 'base64')
+      : Buffer.from(data);
+    const candidates = [image];
+    if (fallbackImage) {
+      const fallbacks = Array.isArray(fallbackImage) ? fallbackImage : [fallbackImage];
+      candidates.push(...fallbacks.map(candidate => Buffer.from(candidate)));
+    }
 
-        let text: string | undefined;
-        if (this.transcribeWithGemini) {
-          text = await this.transcribeWithGemini(resolveMimeType(options.mimeType), base64Data);
-        } else {
-          const ai = this.ai ||= createGoogleGenAIClient();
-          if (!ai) {
-            warnings.push('Gemini OCR was unavailable because no Gemini API key or Vertex AI credentials are configured.');
-          } else {
-            const response = await ai.models.generateContent({
-              model: env.GEMINI_OCR_MODEL || 'gemini-3.1-flash-lite',
-              contents: [{
-                role: 'user',
-                parts: [
-                  {
-                    inlineData: {
-                      mimeType: resolveMimeType(options.mimeType),
-                      data: base64Data,
-                    },
-                  },
-                  {
-                    text: 'Transcribe visible document text verbatim. Do not infer obscured or missing values. Preserve page breaks, labels, dates, currency codes, and amounts.',
-                  },
-                ],
-              }],
-            });
-            text = response.text;
+    try {
+      const worker = await this.getTesseractWorker();
+      for (const [index, candidate] of candidates.entries()) {
+        try {
+          const result = await worker.recognize(candidate);
+          const confidence = Number.isFinite(result.data.confidence)
+            ? Math.max(0, Math.min(1, result.data.confidence / 100))
+            : null;
+          if (!best || (confidence ?? -1) > (best.confidence ?? -1)) {
+            best = { text: result.data.text.trim(), confidence };
           }
+          if (confidence !== null && confidence >= OCR_LOW_CONFIDENCE_THRESHOLD &&
+            (index === 0 || confidence >= 0.75) && result.data.text.trim()) break;
+        } catch {
+          warnings.push('OCR failed on an image variant; trying the next available variant.');
         }
+      }
+    } catch (error) {
+      this.workerPromise = null;
+      warnings.push(`Tesseract OCR failed: ${errorMessage(error)}`);
+    }
 
-        text = text?.trim();
-        if (text) {
-          warnings.push('Gemini Vision does not provide calibrated OCR confidence; extracted fields require review.');
-          return this.createResult(text, null, 'gemini_vision', warnings);
+    const confidence = best?.confidence ?? null;
+    const isLowConfidence = confidence === null || confidence < OCR_LOW_CONFIDENCE_THRESHOLD;
+    if (isLowConfidence) {
+      warnings.push(
+        confidence === null
+          ? 'Local OCR confidence was unavailable; manual review is recommended.'
+          : `Local OCR confidence (${Math.round(confidence * 100)}%) is below the ${Math.round(OCR_LOW_CONFIDENCE_THRESHOLD * 100)}% review threshold.`
+      );
+    }
+
+    if (isLowConfidence && provider !== 'tesseract' && canUseGeminiFallback(env, this.transcribeWithGemini)) {
+      try {
+        const base64Data = image.toString('base64');
+        const transcriber = this.transcribeWithGemini;
+        const text = transcriber
+          ? await transcriber(resolveMimeType(options.mimeType), base64Data)
+          : await this.transcribeImageWithGemini(resolveMimeType(options.mimeType), base64Data, env);
+        const transcript = text?.trim();
+        if (transcript) {
+          warnings.push('Gemini Vision supplied the low-confidence local OCR fallback; its transcript is not independently confidence-calibrated.');
+          return this.createResult(transcript, confidence, 'gemini_vision', warnings);
         }
-        warnings.push('Gemini Vision returned no OCR text.');
+        warnings.push('Gemini Vision returned no OCR text for the low-confidence page.');
       } catch (error) {
-        warnings.push(`Gemini OCR failed: ${errorMessage(error)}`);
+        warnings.push(`Gemini OCR fallback failed: ${errorMessage(error)}`);
       }
     }
 
-    const shouldTryTesseract = provider === 'tesseract' || provider === 'auto' || provider === 'gemini';
-    if (!isPdf && shouldTryTesseract) {
-      try {
-        const image = typeof data === 'string'
-          ? Buffer.from(data.startsWith('data:') ? data.slice(data.indexOf(',') + 1) : data, 'base64')
-          : Buffer.from(data);
-        const worker = await this.getTesseractWorker();
-        const candidates = [image];
-        if (fallbackImage) candidates.push(Buffer.from(fallbackImage));
-        let best: { text: string; confidence: number | null } | null = null;
+    if (!best) warnings.push('Tesseract could not complete OCR on any image variant.');
+    else if (!best.text) warnings.push('Tesseract completed but found no readable text.');
+    if (!best?.text) warnings.push('OCR did not produce text; no invoice values were inferred.');
 
-        for (const candidate of candidates) {
-          try {
-            const result = await worker.recognize(candidate);
-            const text = result.data.text.trim();
-            const confidence = Number.isFinite(result.data.confidence)
-              ? Math.max(0, Math.min(1, result.data.confidence / 100))
-              : null;
-            if (text && (!best || (confidence ?? 0) > (best.confidence ?? 0))) {
-              best = { text, confidence };
-            }
-            if (confidence !== null && confidence >= 0.75) break;
-          } catch {
-            warnings.push('OCR failed on an image variant; trying the next available variant.');
-          }
-        }
+    return this.createResult(
+      best?.text || this.generateDiagnosticNotice(options),
+      confidence,
+      'tesseract',
+      warnings
+    );
+  }
 
-        if (best) {
-          if (best.confidence !== null && best.confidence < 0.65 && fallbackImage) {
-            warnings.push('OCR confidence remained low after image enhancement; manual review is recommended.');
-          }
-          return this.createResult(best.text, best.confidence, 'tesseract', warnings);
-        }
-        warnings.push('Tesseract completed but found no readable text.');
-      } catch (error) {
-        this.workerPromise = null;
-        warnings.push(`Tesseract OCR failed: ${errorMessage(error)}`);
-      }
-    } else if (isPdf && shouldTryTesseract) {
-      warnings.push('Local Tesseract does not process PDF containers; render scanned pages to images before OCR.');
+  private async transcribeImageWithGemini(
+    mimeType: string,
+    base64Data: string,
+    env: Record<string, string | undefined>
+  ): Promise<string | undefined> {
+    const ai = this.ai ||= createGoogleGenAIClient();
+    if (!ai) {
+      throw new Error('Gemini API key is invalid or unavailable.');
     }
-
-    warnings.push('OCR did not produce text; no invoice values were inferred.');
-    return this.createResult(this.generateDiagnosticNotice(options), 0, 'fallback_diagnostic', warnings);
+    const response = await ai.models.generateContent({
+      model: env.GEMINI_OCR_MODEL || 'gemini-3.1-flash-lite',
+      contents: [{
+        role: 'user',
+        parts: [
+          { inlineData: { mimeType, data: base64Data } },
+          {
+            text: 'Transcribe visible document text verbatim. Do not infer obscured or missing values. Preserve page breaks, labels, dates, currency codes, and amounts.',
+          },
+        ],
+      }],
+    });
+    return response.text;
   }
 
   private async getTesseractWorker(): Promise<TesseractWorker> {
@@ -214,6 +228,14 @@ function resolveMimeType(mimeType = 'application/octet-stream'): string {
   if (normalized.includes('tiff')) return 'image/tiff';
   if (normalized.includes('jpeg') || normalized.includes('jpg')) return 'image/jpeg';
   return mimeType;
+}
+
+function canUseGeminiFallback(
+  env: Record<string, string | undefined>,
+  transcriber?: GeminiOcrTranscriber
+): boolean {
+  const apiKey = env.GEMINI_API_KEY?.trim();
+  return Boolean(transcriber || (apiKey && apiKey !== 'MY_GEMINI_API_KEY'));
 }
 
 function errorMessage(error: unknown): string {

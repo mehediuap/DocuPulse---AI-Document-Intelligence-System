@@ -303,7 +303,7 @@ export async function runBackendApiTests(): Promise<{
       throw new Error('Concurrent duplicate retry should have thrown HttpError 409');
     } catch (err) {
       if (!(err instanceof HttpError) || err.statusCode !== 409) {
-        throw new Error(`Expected HttpError 409 CONCURRENT_RETRY_CONFLICT, got: ${err}`);
+        throw new Error(`Expected HttpError 409 CONCURRENT_RETRY_CONFLICT, got: ${err}`, { cause: err });
       }
     } finally {
       (queue as any).activeJobs.delete(uploadedDocId1);
@@ -322,7 +322,7 @@ export async function runBackendApiTests(): Promise<{
       throw new Error('Should have rejected .exe with 415');
     } catch (err) {
       if (!(err instanceof HttpError) || err.statusCode !== 415) {
-        throw new Error(`Expected 415 error, got ${err}`);
+        throw new Error(`Expected 415 error, got ${err}`, { cause: err });
       }
     }
     if (repo.searchDocuments({ limit: 1 }).total !== storedBefore) {
@@ -335,7 +335,7 @@ export async function runBackendApiTests(): Promise<{
       throw new Error('Should have rejected empty files with 400');
     } catch (err) {
       if (!(err instanceof HttpError) || err.statusCode !== 400) {
-        throw new Error(`Expected 400 error, got ${err}`);
+        throw new Error(`Expected 400 error, got ${err}`, { cause: err });
       }
     }
 
@@ -345,7 +345,7 @@ export async function runBackendApiTests(): Promise<{
       throw new Error('Should have returned 404 for missing document');
     } catch (err) {
       if (!(err instanceof HttpError) || err.statusCode !== 404) {
-        throw new Error(`Expected 404 error, got ${err}`);
+        throw new Error(`Expected 404 error, got ${err}`, { cause: err });
       }
     }
   });
@@ -410,7 +410,7 @@ export async function runBackendApiTests(): Promise<{
       controller.crossVerifyDocuments(uploadedDocId1, 'non_existent_target');
       throw new Error('Should have thrown 404 for missing target');
     } catch (err: any) {
-      if (err.statusCode !== 404) throw new Error(`Expected 404, got ${err}`);
+      if (err.statusCode !== 404) throw new Error(`Expected 404, got ${err}`, { cause: err });
     }
   });
 

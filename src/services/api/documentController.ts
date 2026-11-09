@@ -31,6 +31,10 @@ import {
 import { InvoiceExtractionResult } from '../extraction/schemas.ts';
 import { roundToTwoDecimals } from '../validation/decimalUtils.ts';
 import { closeSync, openSync, readSync } from 'node:fs';
+import { HttpError } from './httpError.ts';
+import { toPublicDocument } from './publicDocument.ts';
+
+export { HttpError };
 
 export interface DiskUploadFile {
   originalName: string;
@@ -107,7 +111,7 @@ export class DocumentController {
     const validatedFiles = files.map(file => {
       let descriptor: number | undefined;
       const header = Buffer.alloc(16);
-      let headerLength = 0;
+      let headerLength: number;
       try {
         descriptor = openSync(file.path, 'r');
         headerLength = readSync(descriptor, header, 0, header.length, 0);
@@ -485,7 +489,14 @@ export class DocumentController {
     }
 
     const allDocs = this.repository.getAllDocuments();
-    return await this.semanticSearch.search(query, allDocs, minSimilarity);
+    const response = await this.semanticSearch.search(query, allDocs, minSimilarity);
+    return {
+      ...response,
+      results: response.results.map(result => ({
+        ...result,
+        document: toPublicDocument(result.document),
+      })),
+    };
   }
 
   /**
@@ -512,17 +523,5 @@ export class DocumentController {
   }
 }
 
-export class HttpError extends Error {
-  public statusCode: number;
-  public errorCode: string;
-  public field?: string;
-
-  constructor(statusCode: number, errorCode: string, message: string, field?: string) {
-    super(message);
-    this.statusCode = statusCode;
-    this.errorCode = errorCode;
-    this.field = field;
-  }
-}
 
 export const documentController = new DocumentController();

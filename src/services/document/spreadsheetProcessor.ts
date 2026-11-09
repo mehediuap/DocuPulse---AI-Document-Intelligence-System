@@ -14,7 +14,7 @@ export interface SpreadsheetProcessingResult {
  */
 export async function processSpreadsheet(
   buffer: Uint8Array,
-  filename: string,
+  _filename: string,
   fileType: 'xlsx' | 'xls'
 ): Promise<SpreadsheetProcessingResult> {
   const warnings: string[] = [];
@@ -34,7 +34,7 @@ export async function processSpreadsheet(
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    throw new Error(`Corrupted or unreadable spreadsheet file: ${msg}`);
+    throw new Error(`Corrupted or unreadable spreadsheet file: ${msg}`, { cause: err });
   }
 
   if (!workbook.SheetNames || workbook.SheetNames.length === 0) {

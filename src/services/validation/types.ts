@@ -21,7 +21,9 @@ export type ValidationIssueCode =
   | 'DUPLICATE_INVOICE_CANDIDATE'
   | 'MISSING_CURRENCY'
   | 'CURRENCY_MISMATCH'
-  | 'ROUNDING_TOLERANCE_EXCEEDED';
+  | 'ROUNDING_TOLERANCE_EXCEEDED'
+  | 'TAX_MISSING_CANNOT_RECONCILE'
+  | 'RECONCILIATION_NOT_POSSIBLE';
 
 export interface ValidationIssue {
   code: ValidationIssueCode;

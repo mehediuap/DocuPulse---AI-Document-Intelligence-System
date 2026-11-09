@@ -4,26 +4,19 @@ import {
 } from '../../services/api/types.ts';
 import { api } from '../api.ts';
 import {
-  FileSpreadsheet,
-  FileText,
-  CheckCircle2,
   AlertTriangle,
-  XCircle,
   ArrowRightLeft,
   Loader2,
   Percent,
-  Search,
 } from 'lucide-react';
 
 interface CrossVerificationViewProps {
   documents: DocumentMetadataResponse[];
-  onSelectDocument: (id: string) => void;
   showNotification: (type: 'success' | 'error' | 'info', message: string) => void;
 }
 
 export const CrossVerificationView: React.FC<CrossVerificationViewProps> = ({
   documents,
-  onSelectDocument,
   showNotification,
 }) => {
   const [sourceId, setSourceId] = useState<string>('');

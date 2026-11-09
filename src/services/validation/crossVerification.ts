@@ -5,7 +5,7 @@
  */
 
 import { InvoiceExtractionResult, InvoiceLineItem } from '../extraction/schemas.ts';
-import { getAbsoluteDelta, toCents, fromCents, isWithinTolerance } from './decimalUtils.ts';
+import { getAbsoluteDelta } from './decimalUtils.ts';
 import { normalizeSupplierName, normalizeInvoiceNumber } from './duplicateDetector.ts';
 
 export interface LineItemMatch {

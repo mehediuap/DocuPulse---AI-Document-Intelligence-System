@@ -16,11 +16,30 @@ const __dirname = path.dirname(__filename);
 
 async function startServer() {
   const { apiRouter, safeErrorHandler } = await import('./src/services/api/routes.ts');
+  const { createApiKeyAuth, createRateLimiter } = await import('./src/services/api/auth.ts');
   const app = express();
+  app.disable('x-powered-by');
   const server = http.createServer(app);
   const PORT = parseInt(process.env.PORT || '3000', 10);
   const isProd = process.env.NODE_ENV === 'production';
 
+  app.use((_req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('Referrer-Policy', 'no-referrer');
+    next();
+  });
+
+  if (isProd && !process.env.DOCUPULSE_API_KEY?.trim() &&
+    !process.env.DOCUPULSE_API_TOKENS?.trim()) {
+    console.error('[DocuPulse Server] No API authentication is configured; protected API requests will be refused (HTTP 503).');
+  }
+
+  app.use('/api', createRateLimiter({
+    windowMs: 60_000,
+    max: Number(process.env.RATE_LIMIT_PER_MINUTE) || 120,
+  }));
+  app.use('/api', createApiKeyAuth());
   app.use(express.json({ limit: '1mb' }));
 
   // Mount API router

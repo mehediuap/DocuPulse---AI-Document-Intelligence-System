@@ -1,5 +1,5 @@
-import { PageContent, DocumentMetadata } from './types.ts';
-import { OcrService, ocrService } from './ocrService.ts';
+import { PageContent, DocumentMetadata, DocumentProcessingProgress } from './types.ts';
+import { OCR_LOW_CONFIDENCE_THRESHOLD, OcrService, ocrService } from './ocrService.ts';
 import { createOcrImageVariants } from './imagePreprocessor.ts';
 
 const MAX_TIFF_PAGES = 50;
@@ -18,8 +18,9 @@ export interface ImageProcessingResult {
 export async function processImage(
   buffer: Uint8Array,
   filename: string,
-  mimeType = 'image/jpeg',
-  ocr: Pick<OcrService, 'performOcr'> = ocrService
+  _mimeType = 'image/jpeg',
+  ocr: Pick<OcrService, 'performOcr'> = ocrService,
+  onProgress?: (progress: DocumentProcessingProgress) => void
 ): Promise<ImageProcessingResult> {
   const warnings: string[] = [];
   const ext = filename.split('.').pop()?.toLowerCase();
@@ -38,26 +39,55 @@ export async function processImage(
 
   const pages: PageContent[] = [];
   for (let index = 0; index < pageCount; index++) {
-    const variants = await createOcrImageVariants(buffer, isTiff ? index : undefined);
-    if (variants.warning) warnings.push(`Page ${index + 1}: ${variants.warning}`);
-    const ocrResult = await ocr.performOcr(
-      variants.enhanced,
-      {
-        filename,
-        mimeType: 'image/png',
-        isScanned: true,
-      },
-      variants.highContrast
-    );
-    if (ocrResult.warnings) warnings.push(...ocrResult.warnings.map(warning => `Page ${index + 1}: ${warning}`));
-    const ocrLines = ocrResult.text.split(/\r?\n/).filter(line => line.trim().length > 0);
+    let text = '';
+    let confidence: number | null = null;
+    let isLowQuality: boolean;
+    try {
+      const variants = await createOcrImageVariants(buffer, isTiff ? index : undefined);
+      if (variants.warning) warnings.push(`Page ${index + 1}: ${variants.warning}`);
+      const deskewApplied = variants.deskewedOriginal !== variants.original;
+      const ocrResult = await ocr.performOcr(
+        deskewApplied ? variants.deskewedOriginal : variants.original,
+        { filename, mimeType: 'image/png', isScanned: true },
+        deskewApplied
+          ? [variants.original, variants.enhanced, variants.highContrast]
+          : [variants.enhanced, variants.highContrast]
+      );
+      text = ocrResult.text;
+      confidence = ocrResult.confidence;
+      isLowQuality = confidence === null || confidence < OCR_LOW_CONFIDENCE_THRESHOLD;
+      if (ocrResult.warnings) {
+        warnings.push(...ocrResult.warnings.map(warning => `Page ${index + 1}: ${warning}`));
+      }
+      if (confidence === null) {
+        warnings.push(`Page ${index + 1} OCR confidence is unavailable; manual review is recommended.`);
+      } else if (isLowQuality) {
+        warnings.push(
+          `Page ${index + 1} OCR confidence is below the ${Math.round(OCR_LOW_CONFIDENCE_THRESHOLD * 100)}% quality threshold.`
+        );
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      warnings.push(`Page ${index + 1} OCR failed and was isolated: ${message}`);
+      isLowQuality = true;
+    }
+
+    const ocrLines = text.split(/\r?\n/).filter(line => line.trim().length > 0);
     pages.push({
       pageNumber: index + 1,
-      text: ocrResult.text,
+      text,
       lineCount: ocrLines.length,
       lines: ocrLines,
       isOcr: true,
-      ...(ocrResult.confidence !== null ? { confidence: ocrResult.confidence } : {}),
+      confidence,
+      isLowQuality,
+    });
+    onProgress?.({
+      pageNumber: index + 1,
+      totalPages: pageCount,
+      completedPages: index + 1,
+      progress: (index + 1) / pageCount,
+      stage: 'ocr',
     });
   }
 

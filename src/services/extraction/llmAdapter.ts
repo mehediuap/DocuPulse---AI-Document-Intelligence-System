@@ -10,6 +10,7 @@ import {
   validateInvoiceExtraction,
   createEmptyExtractionResult,
 } from './schemas.ts';
+import { groundExtraction } from './grounding.ts';
 import {
   INVOICE_EXTRACTION_SYSTEM_INSTRUCTION,
   buildInvoiceExtractionPrompt,
@@ -34,19 +35,66 @@ type ParsedField = { value: string; snippet: string };
 type ParsedAmountField = { value: number; snippet: string };
 
 const FIELD_LABELS = {
-  invoice_number: ['invoice number', 'invoice no.', 'invoice no', 'invoice num', 'invoice #', 'invoice id', 'invoice ref', 'bill number', 'bill no.', 'bill no', 'bill #'],
-  invoice_date: ['invoice date', 'issue date', 'date issued', 'dated', 'date'],
-  supplier_name: ['supplier', 'vendor', 'seller', 'issuer', 'from', 'billed by', 'remit from'],
-  customer_name: ['customer', 'client', 'buyer', 'billed to', 'bill to', 'invoice to', 'sold to', 'remit to', 'attn'],
-  subtotal: ['sub total', 'subtotal', 'net amount'],
-  tax: ['sales tax', 'tax amount', 'tax', 'vat', 'gst'],
-  total: ['total balance due', 'balance due', 'amount due', 'grand total', 'invoice total', 'total due', 'total amount', 'total'],
-  currency: ['currency', 'currency code'],
+  invoice_number: ['rechnungsnummer', 'rechnung nr', 'invoice number', 'invoice no.', 'invoice no', 'invoice num', 'invoice #', 'invoice id', 'invoice ref', 'bill number', 'bill no.', 'bill no', 'bill #'],
+  invoice_date: ['rechnungsdatum', 'datum', 'invoice date', 'issue date', 'date issued', 'dated', 'date'],
+  supplier_name: ['lieferant', 'supplier', 'vendor', 'seller', 'issuer', 'from', 'billed by', 'remit from'],
+  customer_name: ['kunde', 'customer', 'client', 'buyer', 'billed to', 'bill to', 'invoice to', 'sold to', 'remit to', 'attn'],
+  subtotal: ['zwischensumme', 'sub total', 'subtotal', 'net amount'],
+  tax: ['mehrwertsteuer', 'mwst', 'sales tax', 'tax amount', 'tax', 'vat', 'gst'],
+  total: ['gesamtbetrag', 'total balance due', 'balance due', 'amount due', 'grand total', 'invoice total', 'total due', 'total amount', 'total'],
+  currency: ['waehrung', 'currency', 'currency code'],
 } as const;
 
 const INVOICE_NUMBER_PATTERN = /\bINV-[A-Z0-9]+(?:-[A-Z0-9]+)*\b/i;
-const DATE_VALUE_PATTERN = /\b(?:\d{4}[-/]\d{1,2}[-/]\d{1,2}|\d{1,2}[-/]\d{1,2}[-/]\d{2,4}|[A-Za-z]+\s+\d{1,2},?\s+\d{4})\b/;
-const CURRENCY_CODES = new Set(['USD', 'CAD', 'AUD', 'NZD', 'EUR', 'GBP', 'JPY', 'CNY', 'INR', 'CHF', 'SGD', 'HKD']);
+const DATE_VALUE_PATTERN = /\b(?:\d{4}[-/.]\d{1,2}[-/.]\d{1,2}|\d{1,2}([-/.])\d{1,2}\1\d{2,4}|\d{1,2}(?:st|nd|rd|th)?\s+[A-Za-z]+\.?,?\s+\d{4}|[A-Za-z]+\.?\s+\d{1,2}(?:st|nd|rd|th)?,?\s+\d{4})\b/;
+const CURRENCY_CODES = new Set([
+  'USD', 'CAD', 'AUD', 'NZD', 'EUR', 'GBP', 'JPY', 'CNY', 'INR', 'CHF', 'SGD', 'HKD',
+  'BDT', 'PKR', 'LKR', 'NPR', 'AED', 'SAR', 'QAR', 'KWD', 'MYR', 'THB', 'IDR', 'PHP', 'VND', 'KRW', 'TWD',
+  'SEK', 'NOK', 'DKK', 'PLN', 'CZK', 'HUF', 'RON', 'TRY', 'RUB', 'ILS', 'EGP', 'ZAR', 'NGN', 'KES', 'BRL', 'MXN', 'ARS', 'CLP',
+]);
+const CODE_ALT = [...CURRENCY_CODES].join('|');
+const CODE_PREFIX_RE = new RegExp(`^(?:${CODE_ALT})\\s*`, 'i');
+const CODE_SUFFIX_RE = new RegExp(`\\s*(?:${CODE_ALT})$`, 'i');
+const CODE_THEN_SIGN_RE = new RegExp(`^(?:${CODE_ALT})\\s+([-+])\\s*`, 'i');
+const AMOUNT_TOKEN_RE = new RegExp(`^\\s*(?:\\(\\s*)?[+-]?\\s*(?:(?:${CODE_ALT})\\s+)?[$€£¥₹৳]?\\s*\\d[\\d.,' OIl|]*(?:\\s*\\))?(?:\\s*(?:${CODE_ALT}))?`, 'i');
+const CODE_WORD_RE = new RegExp(`\\b(?:${CODE_ALT})\\b`);
+
+const MONTHS: Record<string, number> = {
+  jan: 1, january: 1, feb: 2, february: 2, mar: 3, march: 3, apr: 4, april: 4, may: 5, jun: 6, june: 6,
+  jul: 7, july: 7, aug: 8, august: 8, sep: 9, sept: 9, september: 9, oct: 10, october: 10, nov: 11, november: 11,
+  dec: 12, december: 12,
+};
+
+function isoDate(y: number, m: number, d: number): string | null {
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  if (dt.getUTCFullYear() !== y || dt.getUTCMonth() !== m - 1 || dt.getUTCDate() !== d) return null;
+  return `${String(y).padStart(4, '0')}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+}
+
+/** Normalises a printed date to YYYY-MM-DD. Day-first vs month-first ambiguity is never guessed: returns 'ambiguous'. */
+export function normalizeDateToIso(raw: string): string | 'ambiguous' | null {
+  let s = raw.trim().replace(/\s+/g, ' ');
+  if (/^[0-9OIl|][0-9OIl|./-]*$/i.test(s)) {
+    s = s.replace(/[Oo]/g, '0').replace(/[Il|]/g, '1');
+  }
+  let m = s.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/);
+  if (m) return isoDate(+m[1], +m[2], +m[3]);
+  m = s.match(/^(\d{1,2})([-/.])(\d{1,2})\2(\d{2,4})$/);
+  if (m) {
+    const a = +m[1], b = +m[3];
+    const y = m[4].length === 2 ? 2000 + +m[4] : +m[4];
+    if (m[2] === '.') return isoDate(y, b, a);              // dd.mm.yyyy is day-first
+    if (a > 12) return isoDate(y, b, a);
+    if (b > 12) return isoDate(y, a, b);
+    if (a === b) return isoDate(y, a, b);
+    return 'ambiguous';
+  }
+  m = s.match(/^(\d{1,2})(?:st|nd|rd|th)?\s+([A-Za-z]+)\.?,?\s+(\d{4})$/);
+  if (m && MONTHS[m[2].toLowerCase()]) return isoDate(+m[3], MONTHS[m[2].toLowerCase()], +m[1]);
+  m = s.match(/^([A-Za-z]+)\.?\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+(\d{4})$/);
+  if (m && MONTHS[m[1].toLowerCase()]) return isoDate(+m[3], MONTHS[m[1].toLowerCase()], +m[2]);
+  return null;
+}
 
 function normalizeForMatching(value: string): string {
   return value
@@ -77,7 +125,10 @@ function getValueAfterLabel(line: string, labels: readonly string[]): string | n
   const labelPattern = sortedLabels
     .map(label => escapeRegExp(normalizeForMatching(label)).replace(/ /g, '\\s+'))
     .join('|');
-  const match = line.match(new RegExp(`^\\s*(?:Row\\s*\\d+\\s*:\\s*)?(?:${labelPattern})(?:\\s*[:#|\\-]\\s*|\\s+)(.*?)\\s*$`, 'i'));
+  const match = line.match(new RegExp(
+    `^\\s*(?:Row\\s*\\d+\\s*:\\s*)?(?:${labelPattern})(?:\\s*[:#|'"\u2018\u2019\u201c\u201d\\-]\\s*|\\s+)(.*?)\\s*$`,
+    'i'
+  ));
   return match?.[1]?.trim().replace(/^["']|["']$/g, '') || null;
 }
 
@@ -88,7 +139,7 @@ function findLabeledField(lines: string[], labels: readonly string[]): ParsedFie
     .join('|');
   for (let index = 0; index < lines.length; index++) {
     const raw = lines[index];
-    const normalized = normalizeForMatching(raw);
+    const normalized = normalizeForMatching(raw).replace(/^[^\p{L}\p{N}]*/u, '');
     if (!normalized || normalized.startsWith('---')) continue;
     let value = getValueAfterLabel(normalized, labels);
     let snippet = raw;
@@ -144,12 +195,12 @@ function parseLocalizedAmount(raw: string): number | null {
     negative = true;
     value = value.slice(1, -1).trim();
   }
-  const currencyThenSign = value.match(/^[$€£¥₹]\s*([-+])\s*/);
+  const currencyThenSign = value.match(/^[$€£¥₹৳]\s*([-+])\s*/);
   if (currencyThenSign) {
     negative = currencyThenSign[1] === '-' ? !negative : negative;
     value = value.slice(currencyThenSign[0].length);
   }
-  const codeThenSign = value.match(/^(?:USD|CAD|AUD|NZD|EUR|GBP|JPY|CNY|INR|CHF|SGD|HKD)\s+([-+])\s*/i);
+  const codeThenSign = value.match(CODE_THEN_SIGN_RE);
   if (codeThenSign) {
     negative = codeThenSign[1] === '-' ? !negative : negative;
     value = value.slice(codeThenSign[0].length);
@@ -162,9 +213,13 @@ function parseLocalizedAmount(raw: string): number | null {
   }
 
   value = value
-    .replace(/^(?:USD|CAD|AUD|NZD|EUR|GBP|JPY|CNY|INR|CHF|SGD|HKD)\s*/i, '')
-    .replace(/\s*(?:USD|CAD|AUD|NZD|EUR|GBP|JPY|CNY|INR|CHF|SGD|HKD)$/i, '')
-    .replace(/[$€£¥₹]/g, '')
+    .replace(CODE_PREFIX_RE, '')
+    .replace(CODE_SUFFIX_RE, '')
+    .replace(/[$€£¥₹৳]/g, '')
+    .trim()
+    .replace(/[Oo]/g, '0')
+    .replace(/[Il|]/g, '1')
+    .replace(/(?<=[\d.,])\s+(?=[\d.,])/g, '')
     .replace(/(?<=\d)[ '\u2019](?=\d)/g, '');
   if (!/^\d[\d.,]*$/.test(value) && !/^\.\d+$/.test(value)) return null;
 
@@ -229,9 +284,9 @@ function parseLocalizedAmount(raw: string): number | null {
 
 function parseLabeledAmount(value: string, field: 'subtotal' | 'tax' | 'total'): number | null {
   let amountText = field === 'tax'
-    ? value.replace(/^\s*(?:\d+(?:[.,]\d+)?\s*%|\([^)]*%\))\s*[:|\-]?\s*/, '')
+    ? value.replace(/^\s*(?:\d+(?:[.,]\d+)?\s*%|\([^)]*%\))\s*[:|-]?\s*/, '')
     : value;
-  const amountToken = amountText.match(/^\s*(?:\(\s*)?[+-]?\s*[$€£¥₹]?\s*\d[\d.,' ]*(?:\s*\))?(?:\s*(?:USD|CAD|AUD|NZD|EUR|GBP|JPY|CNY|INR|CHF|SGD|HKD))?/i);
+  const amountToken = amountText.match(AMOUNT_TOKEN_RE);
   if (!amountToken) return null;
   amountText = amountToken[0].trim();
   return parseLocalizedAmount(amountText);
@@ -244,17 +299,36 @@ function findCurrency(lines: string[], labeledCurrency: ParsedField | null): Par
     if (code === '€') return { value: 'EUR', snippet: labeledCurrency.snippet };
     if (code === '£') return { value: 'GBP', snippet: labeledCurrency.snippet };
     if (code === '₹') return { value: 'INR', snippet: labeledCurrency.snippet };
+    if (code === '৳') return { value: 'BDT', snippet: labeledCurrency.snippet };
   }
 
   for (const raw of lines) {
     const normalized = normalizeForMatching(raw).toUpperCase();
-    const code = normalized.match(/\b(?:USD|CAD|AUD|NZD|EUR|GBP|JPY|CNY|INR|CHF|SGD|HKD)\b/)?.[0];
+    const code = normalized.match(CODE_WORD_RE)?.[0];
     if (code) return { value: code, snippet: raw };
     if (normalized.includes('€')) return { value: 'EUR', snippet: raw };
     if (normalized.includes('£')) return { value: 'GBP', snippet: raw };
     if (normalized.includes('₹')) return { value: 'INR', snippet: raw };
+    if (normalized.includes('৳')) return { value: 'BDT', snippet: raw };
+  }
+  for (const raw of lines) {
+    const normalized = normalizeForMatching(raw).toUpperCase();
+    if (!/\b(?:TOTAL|BALANCE DUE|AMOUNT DUE|GRAND TOTAL)\b/.test(normalized)) continue;
+    const trailingToken = normalized.match(/\b([A-Z0-9]{3})\s*$/)?.[1];
+    if (!trailingToken) continue;
+    const closeCodes = [...CURRENCY_CODES].filter(code => hasSingleCharacterDifference(code, trailingToken));
+    if (closeCodes.length === 1) return { value: closeCodes[0], snippet: raw };
   }
   return null;
+}
+
+function hasSingleCharacterDifference(expected: string, actual: string): boolean {
+  if (expected.length !== actual.length) return false;
+  let differences = 0;
+  for (let index = 0; index < expected.length; index++) {
+    if (expected[index] !== actual[index] && ++differences > 1) return false;
+  }
+  return differences === 1;
 }
 
 /**
@@ -265,7 +339,7 @@ function findCurrency(lines: string[], labeledCurrency: ParsedField | null): Par
 export class MockRuleBasedAdapter implements ExtractionAdapter {
   public async extract(
     documentText: string,
-    options: ExtractionOptions = {}
+    _options: ExtractionOptions = {}
   ): Promise<InvoiceExtractionResult> {
     const startTime = performance.now();
     logSafe(`Executing MockRuleBasedAdapter on document (${documentText.length} chars)`);
@@ -303,12 +377,16 @@ export class MockRuleBasedAdapter implements ExtractionAdapter {
     const findField = (labels: readonly string[]) =>
       findTableField(docLines, labels) || findLabeledField(cleanLines, labels);
 
-    const invoiceNumberField = findField(FIELD_LABELS.invoice_number);
+    // A bare title such as "INVOICE" / "TAX INVOICE" is not a label with a value on the next line.
+    const numberLines = cleanLines.filter(line =>
+      !/^\s*(?:tax\s+|sales\s+)?(?:invoice|bill|receipt|rechnung)\s*$/i.test(normalizeForMatching(line)));
+    const invoiceNumberField = findTableField(docLines, FIELD_LABELS.invoice_number) ||
+      findLabeledField(numberLines, FIELD_LABELS.invoice_number);
     if (invoiceNumberField) {
       const candidate = invoiceNumberField.value.split(/\s+/)[0].replace(/[,:;]+$/, '');
       const valueIsAnotherLabeledField = Object.values(FIELD_LABELS)
         .some(labels => getValueAfterLabel(normalizeForMatching(invoiceNumberField.value), labels));
-      if (!valueIsAnotherLabeledField && candidate.toLowerCase() !== 'invoice' &&
+      if (!valueIsAnotherLabeledField && candidate.toLowerCase() !== 'invoice' && /\d/.test(candidate) &&
         /^[A-Za-z0-9][A-Za-z0-9./_-]*$/.test(candidate) &&
         !Object.values(FIELD_LABELS).some(labels => labels.some(label => normalizeLabel(candidate) === normalizeLabel(label)))) {
         invoice_number = candidate;
@@ -329,10 +407,16 @@ export class MockRuleBasedAdapter implements ExtractionAdapter {
     }
 
     const dateField = findField(FIELD_LABELS.invoice_date);
-    const dateMatch = dateField?.value.match(DATE_VALUE_PATTERN);
+    const dateMatch = dateField?.value.match(DATE_VALUE_PATTERN) ||
+      dateField?.value.match(/\b[0-9OIl|]{4}[-/.][0-9OIl|]{1,2}[-/.][0-9OIl|]{1,2}\b/i);
     if (dateField && dateMatch) {
-      invoice_date = dateMatch[0];
-      addEvidence('invoice_date', dateField, 0.92);
+      const iso = normalizeDateToIso(dateMatch[0]);
+      if (iso === 'ambiguous') {
+        warnings.push(`Ambiguous date "${dateMatch[0]}" (day-first or month-first) was not guessed; invoice_date left empty.`);
+      } else {
+        invoice_date = iso ?? dateMatch[0];
+        addEvidence('invoice_date', dateField, 0.92);
+      }
     }
 
     const supplierField = findField(FIELD_LABELS.supplier_name);
@@ -513,13 +597,14 @@ export class GeminiExtractionAdapter implements ExtractionAdapter {
 
     // Helper for executing generateContent with timeout
     const executeCall = async (modelToUse: string, msLimit: number) => {
-      let timeoutId: ReturnType<typeof setTimeout> | undefined;
+      let timer: ReturnType<typeof setTimeout> | undefined;
       const timeoutPromise = new Promise<never>((_, reject) => {
-        timeoutId = setTimeout(() => reject(new Error(`Extraction timed out after ${msLimit}ms`)), msLimit);
+        timer = setTimeout(() => reject(new Error(`Extraction timed out after ${msLimit}ms`)), msLimit);
       });
-
       try {
-        const callPromise = this.ai!.models.generateContent({
+        // Promise.resolve().then(...) turns a synchronous throw into a rejection, so the timeout promise is
+        // always attached to the race (previously a sync failure left it unhandled and crashed the process).
+        const callPromise = Promise.resolve().then(() => this.ai!.models.generateContent({
           model: modelToUse,
           contents: prompt,
           config: {
@@ -527,11 +612,10 @@ export class GeminiExtractionAdapter implements ExtractionAdapter {
             responseMimeType: 'application/json',
             temperature: 0.1,
           },
-        });
-
+        }));
         return await Promise.race([callPromise, timeoutPromise]);
       } finally {
-        if (timeoutId !== undefined) clearTimeout(timeoutId);
+        clearTimeout(timer);   // never leave the timer running (it also kept the process alive for up to 30 s)
       }
     };
 
@@ -566,7 +650,7 @@ export class GeminiExtractionAdapter implements ExtractionAdapter {
         const cleaned = rawText.replace(/```json\n?|\n?```/g, '').trim();
         parsed = JSON.parse(cleaned);
       } catch (jsonErr) {
-        throw new Error(`Model returned malformed JSON: ${String(jsonErr)}`);
+        throw new Error(`Model returned malformed JSON: ${String(jsonErr)}`, { cause: jsonErr });
       }
 
       const duration = Math.round(performance.now() - startTime);
@@ -577,8 +661,9 @@ export class GeminiExtractionAdapter implements ExtractionAdapter {
         warnings: parsed.extraction_metadata?.warnings || [],
       };
 
-      const validated = validateInvoiceExtraction(parsed, 'gemini_llm', documentText);
-      return validated.data;
+      const validated = validateInvoiceExtraction(parsed, 'gemini_llm');
+      // Code-level anti-hallucination guard: values not present in the source text are removed.
+      return groundExtraction(validated.data, documentText).result;
     } catch (err) {
       const duration = Math.round(performance.now() - startTime);
       const errMsg = err instanceof Error ? err.message : String(err);
@@ -593,8 +678,9 @@ export class GeminiExtractionAdapter implements ExtractionAdapter {
           ...fallbackResult,
           extraction_metadata: {
             ...fallbackResult.extraction_metadata,
-            mode: 'gemini_llm',
-            model_used: `${modelName} (fallback: deterministic_rule_parser)`,
+            // Honest labelling: this result came from the rule-based parser, not from the LLM.
+            mode: 'mock_rule_based',
+            model_used: `deterministic_rule_parser (fallback after ${modelName} failure)`,
             processing_time_ms: duration,
             warnings: [
               `Provider failure: ${errMsg}`,

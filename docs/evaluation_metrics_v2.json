@@ -1,0 +1,478 @@
+{
+  "evaluation": {
+    "command": "npm run evaluate:v2",
+    "timestamp": "2026-11-05T07:25:05.342Z",
+    "node": "v24.13.0",
+    "platform": "win32-x64",
+    "extraction_mode": "mock deterministic rule parser",
+    "ocr_provider": "tesseract",
+    "ocr_fallback": "disabled",
+    "ocr_low_confidence_threshold": 0.65,
+    "dataset_documents": 11,
+    "duration_ms": 31745
+  },
+  "summary": {
+    "overall_field_accuracy": 100,
+    "overall_exact_field_matches": 90,
+    "overall_fields_evaluated": 90,
+    "ocr_field_accuracy": 100,
+    "ocr_exact_field_matches": 18,
+    "ocr_fields_evaluated": 18,
+    "ocr_documents_with_text": 2,
+    "ocr_documents_evaluated": 2,
+    "average_measured_tesseract_confidence": 0.94,
+    "measured_ocr_pages": 2,
+    "low_quality_ocr_pages": 0,
+    "validation_status_concordance": 100,
+    "validation_statuses_concordant": 11,
+    "validation_statuses_evaluated": 11,
+    "processing_duration_ms": 31745
+  },
+  "fields": {
+    "invoice_number": {
+      "exact_matches": 10,
+      "evaluated": 10,
+      "accuracy_percentage": 100
+    },
+    "invoice_date": {
+      "exact_matches": 10,
+      "evaluated": 10,
+      "accuracy_percentage": 100
+    },
+    "supplier_name": {
+      "exact_matches": 10,
+      "evaluated": 10,
+      "accuracy_percentage": 100
+    },
+    "customer_name": {
+      "exact_matches": 10,
+      "evaluated": 10,
+      "accuracy_percentage": 100
+    },
+    "subtotal": {
+      "exact_matches": 10,
+      "evaluated": 10,
+      "accuracy_percentage": 100
+    },
+    "tax": {
+      "exact_matches": 10,
+      "evaluated": 10,
+      "accuracy_percentage": 100
+    },
+    "total": {
+      "exact_matches": 10,
+      "evaluated": 10,
+      "accuracy_percentage": 100
+    },
+    "currency": {
+      "exact_matches": 10,
+      "evaluated": 10,
+      "accuracy_percentage": 100
+    },
+    "line_items_count": {
+      "exact_matches": 10,
+      "evaluated": 10,
+      "accuracy_percentage": 100
+    }
+  },
+  "ocr_fields": {
+    "invoice_number": {
+      "exact_matches": 2,
+      "evaluated": 2,
+      "accuracy_percentage": 100
+    },
+    "invoice_date": {
+      "exact_matches": 2,
+      "evaluated": 2,
+      "accuracy_percentage": 100
+    },
+    "supplier_name": {
+      "exact_matches": 2,
+      "evaluated": 2,
+      "accuracy_percentage": 100
+    },
+    "customer_name": {
+      "exact_matches": 2,
+      "evaluated": 2,
+      "accuracy_percentage": 100
+    },
+    "subtotal": {
+      "exact_matches": 2,
+      "evaluated": 2,
+      "accuracy_percentage": 100
+    },
+    "tax": {
+      "exact_matches": 2,
+      "evaluated": 2,
+      "accuracy_percentage": 100
+    },
+    "total": {
+      "exact_matches": 2,
+      "evaluated": 2,
+      "accuracy_percentage": 100
+    },
+    "currency": {
+      "exact_matches": 2,
+      "evaluated": 2,
+      "accuracy_percentage": 100
+    },
+    "line_items_count": {
+      "exact_matches": 2,
+      "evaluated": 2,
+      "accuracy_percentage": 100
+    }
+  },
+  "document_types": {
+    "pdf": {
+      "documents": 4,
+      "correctFields": 27,
+      "totalFields": 27,
+      "field_accuracy_percentage": 100
+    },
+    "csv": {
+      "documents": 3,
+      "correctFields": 27,
+      "totalFields": 27,
+      "field_accuracy_percentage": 100
+    },
+    "xlsx": {
+      "documents": 2,
+      "correctFields": 18,
+      "totalFields": 18,
+      "field_accuracy_percentage": 100
+    },
+    "image": {
+      "documents": 1,
+      "correctFields": 9,
+      "totalFields": 9,
+      "field_accuracy_percentage": 100
+    },
+    "scanned_pdf": {
+      "documents": 1,
+      "correctFields": 9,
+      "totalFields": 9,
+      "field_accuracy_percentage": 100
+    }
+  },
+  "documents": [
+    {
+      "id": "DOC-EVAL-001",
+      "filename": "INV-2026-001-ApexCloud.pdf",
+      "file_type": "pdf",
+      "pipeline_status": "completed",
+      "validation_status": "valid",
+      "expected_validation_status": "valid",
+      "status_concordant": true,
+      "ocr_page_count": 0,
+      "ocr_text_available": null,
+      "ocr_confidences": [],
+      "low_quality_pages": [],
+      "page_progress_updates": [
+        1
+      ],
+      "field_matches": {
+        "invoice_number": true,
+        "invoice_date": true,
+        "supplier_name": true,
+        "customer_name": true,
+        "subtotal": true,
+        "tax": true,
+        "total": true,
+        "currency": true,
+        "line_items_count": true
+      },
+      "processing_warnings": [],
+      "processing_errors": []
+    },
+    {
+      "id": "DOC-EVAL-002",
+      "filename": "INV-2026-002-EnterpriseNetworks.pdf",
+      "file_type": "pdf",
+      "pipeline_status": "completed",
+      "validation_status": "valid",
+      "expected_validation_status": "valid",
+      "status_concordant": true,
+      "ocr_page_count": 0,
+      "ocr_text_available": null,
+      "ocr_confidences": [],
+      "low_quality_pages": [],
+      "page_progress_updates": [
+        0.5,
+        1
+      ],
+      "field_matches": {
+        "invoice_number": true,
+        "invoice_date": true,
+        "supplier_name": true,
+        "customer_name": true,
+        "subtotal": true,
+        "tax": true,
+        "total": true,
+        "currency": true,
+        "line_items_count": true
+      },
+      "processing_warnings": [],
+      "processing_errors": []
+    },
+    {
+      "id": "DOC-EVAL-003",
+      "filename": "INV-2026-003-NordicTech.csv",
+      "file_type": "csv",
+      "pipeline_status": "warning",
+      "validation_status": "valid",
+      "expected_validation_status": "valid",
+      "status_concordant": true,
+      "ocr_page_count": 0,
+      "ocr_text_available": null,
+      "ocr_confidences": [],
+      "low_quality_pages": [],
+      "page_progress_updates": [],
+      "field_matches": {
+        "invoice_number": true,
+        "invoice_date": true,
+        "supplier_name": true,
+        "customer_name": true,
+        "subtotal": true,
+        "tax": true,
+        "total": true,
+        "currency": true,
+        "line_items_count": true
+      },
+      "processing_warnings": [
+        "Auto-detected delimiter: \",\".",
+        "Inconsistent column count detected on 4 data rows; standardized to 8 columns."
+      ],
+      "processing_errors": []
+    },
+    {
+      "id": "DOC-EVAL-004",
+      "filename": "INV-2026-004-PrecisionHardware.xlsx",
+      "file_type": "xlsx",
+      "pipeline_status": "warning",
+      "validation_status": "valid",
+      "expected_validation_status": "valid",
+      "status_concordant": true,
+      "ocr_page_count": 0,
+      "ocr_text_available": null,
+      "ocr_confidences": [],
+      "low_quality_pages": [],
+      "page_progress_updates": [],
+      "field_matches": {
+        "invoice_number": true,
+        "invoice_date": true,
+        "supplier_name": true,
+        "customer_name": true,
+        "subtotal": true,
+        "tax": true,
+        "total": true,
+        "currency": true,
+        "line_items_count": true
+      },
+      "processing_warnings": [
+        "Multi-worksheet workbook detected: 2 worksheets preserved."
+      ],
+      "processing_errors": []
+    },
+    {
+      "id": "DOC-EVAL-005",
+      "filename": "INV-2026-005-BeaconSupplies.png",
+      "file_type": "image",
+      "pipeline_status": "completed",
+      "validation_status": "valid",
+      "expected_validation_status": "valid",
+      "status_concordant": true,
+      "ocr_page_count": 1,
+      "ocr_text_available": true,
+      "ocr_confidences": [
+        0.94
+      ],
+      "low_quality_pages": [],
+      "page_progress_updates": [
+        1
+      ],
+      "field_matches": {
+        "invoice_number": true,
+        "invoice_date": true,
+        "supplier_name": true,
+        "customer_name": true,
+        "subtotal": true,
+        "tax": true,
+        "total": true,
+        "currency": true,
+        "line_items_count": true
+      },
+      "processing_warnings": [],
+      "processing_errors": []
+    },
+    {
+      "id": "DOC-EVAL-006",
+      "filename": "INV-2026-006-EuroScale.csv",
+      "file_type": "csv",
+      "pipeline_status": "warning",
+      "validation_status": "valid",
+      "expected_validation_status": "valid",
+      "status_concordant": true,
+      "ocr_page_count": 0,
+      "ocr_text_available": null,
+      "ocr_confidences": [],
+      "low_quality_pages": [],
+      "page_progress_updates": [],
+      "field_matches": {
+        "invoice_number": true,
+        "invoice_date": true,
+        "supplier_name": true,
+        "customer_name": true,
+        "subtotal": true,
+        "tax": true,
+        "total": true,
+        "currency": true,
+        "line_items_count": true
+      },
+      "processing_warnings": [
+        "Auto-detected delimiter: \";\".",
+        "Inconsistent column count detected on 3 data rows; standardized to 8 columns."
+      ],
+      "processing_errors": []
+    },
+    {
+      "id": "DOC-EVAL-007",
+      "filename": "INV-2026-007-QuickPrint.pdf",
+      "file_type": "pdf",
+      "pipeline_status": "completed",
+      "validation_status": "invalid",
+      "expected_validation_status": "invalid",
+      "status_concordant": true,
+      "ocr_page_count": 0,
+      "ocr_text_available": null,
+      "ocr_confidences": [],
+      "low_quality_pages": [],
+      "page_progress_updates": [
+        1
+      ],
+      "field_matches": {
+        "invoice_number": true,
+        "invoice_date": true,
+        "supplier_name": true,
+        "customer_name": true,
+        "subtotal": true,
+        "tax": true,
+        "total": true,
+        "currency": true,
+        "line_items_count": true
+      },
+      "processing_warnings": [],
+      "processing_errors": []
+    },
+    {
+      "id": "DOC-EVAL-008",
+      "filename": "INV-2026-008-StarlightMedia.xlsx",
+      "file_type": "xlsx",
+      "pipeline_status": "warning",
+      "validation_status": "invalid",
+      "expected_validation_status": "invalid",
+      "status_concordant": true,
+      "ocr_page_count": 0,
+      "ocr_text_available": null,
+      "ocr_confidences": [],
+      "low_quality_pages": [],
+      "page_progress_updates": [],
+      "field_matches": {
+        "invoice_number": true,
+        "invoice_date": true,
+        "supplier_name": true,
+        "customer_name": true,
+        "subtotal": true,
+        "tax": true,
+        "total": true,
+        "currency": true,
+        "line_items_count": true
+      },
+      "processing_warnings": [
+        "Multi-worksheet workbook detected: 2 worksheets preserved."
+      ],
+      "processing_errors": []
+    },
+    {
+      "id": "DOC-EVAL-009",
+      "filename": "INV-2026-009-DuplicateCandidate.csv",
+      "file_type": "csv",
+      "pipeline_status": "warning",
+      "validation_status": "needs_review",
+      "expected_validation_status": "needs_review",
+      "status_concordant": true,
+      "ocr_page_count": 0,
+      "ocr_text_available": null,
+      "ocr_confidences": [],
+      "low_quality_pages": [],
+      "page_progress_updates": [],
+      "field_matches": {
+        "invoice_number": true,
+        "invoice_date": true,
+        "supplier_name": true,
+        "customer_name": true,
+        "subtotal": true,
+        "tax": true,
+        "total": true,
+        "currency": true,
+        "line_items_count": true
+      },
+      "processing_warnings": [
+        "Auto-detected delimiter: \",\".",
+        "Inconsistent column count detected on 3 data rows; standardized to 8 columns."
+      ],
+      "processing_errors": []
+    },
+    {
+      "id": "DOC-EVAL-010",
+      "filename": "INV-2026-010-CorruptPayload.pdf",
+      "file_type": "pdf",
+      "pipeline_status": "failed",
+      "validation_status": "failed",
+      "expected_validation_status": "failed",
+      "status_concordant": true,
+      "ocr_page_count": 0,
+      "ocr_text_available": null,
+      "ocr_confidences": [],
+      "low_quality_pages": [],
+      "page_progress_updates": [],
+      "field_matches": {},
+      "processing_warnings": [],
+      "processing_errors": [
+        "Processing error during PDF parsing: Corrupted or invalid PDF format: Missing %PDF- header magic bytes."
+      ]
+    },
+    {
+      "id": "DOC-EVAL-011",
+      "filename": "INV-2026-011-NorthstarScanned.pdf",
+      "file_type": "scanned_pdf",
+      "pipeline_status": "warning",
+      "validation_status": "valid",
+      "expected_validation_status": "valid",
+      "status_concordant": true,
+      "ocr_page_count": 1,
+      "ocr_text_available": true,
+      "ocr_confidences": [
+        0.94
+      ],
+      "low_quality_pages": [],
+      "page_progress_updates": [
+        1
+      ],
+      "field_matches": {
+        "invoice_number": true,
+        "invoice_date": true,
+        "supplier_name": true,
+        "customer_name": true,
+        "subtotal": true,
+        "tax": true,
+        "total": true,
+        "currency": true,
+        "line_items_count": true
+      },
+      "processing_warnings": [
+        "Page 1 contains no extractable PDF text and was routed to OCR."
+      ],
+      "processing_errors": []
+    }
+  ]
+}

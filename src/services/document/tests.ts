@@ -2,7 +2,8 @@ import * as XLSX from 'xlsx';
 import { documentPipeline } from './documentPipeline.ts';
 import { sanitizeFilename } from './security.ts';
 import { processPdf } from './pdfProcessor.ts';
-import { OcrService } from './ocrService.ts';
+import { OCR_LOW_CONFIDENCE_THRESHOLD, OcrService, ocrService } from './ocrService.ts';
+import { processImage } from './imageProcessor.ts';
 
 function buildPdf(objects: Uint8Array[]): Uint8Array {
   const encoder = new TextEncoder();
@@ -100,6 +101,113 @@ export async function createCompressedPdfBytes(invoiceNo: string): Promise<Uint8
   await writer.close();
   const compressed = new Uint8Array(await new Response(compression.readable).arrayBuffer());
   return createPdfDocument([createPdfStream(compressed, true)]);
+}
+
+function concatBytes(chunks: Uint8Array[]): Uint8Array {
+  const output = new Uint8Array(chunks.reduce((length, chunk) => length + chunk.length, 0));
+  let offset = 0;
+  for (const chunk of chunks) {
+    output.set(chunk, offset);
+    offset += chunk.length;
+  }
+  return output;
+}
+
+function createImageOnlyPdfBytes(jpeg: Uint8Array, width: number, height: number): Uint8Array {
+  const encoder = new TextEncoder();
+  const content = encoder.encode(`q ${width} 0 0 ${height} 0 0 cm /Im1 Do Q`);
+  const contentStream = concatBytes([
+    encoder.encode(`<< /Length ${content.length} >>\nstream\n`),
+    content,
+    encoder.encode('\nendstream'),
+  ]);
+  const imageStream = concatBytes([
+    encoder.encode(
+      `<< /Type /XObject /Subtype /Image /Width ${width} /Height ${height} ` +
+      `/ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${jpeg.length} >>\nstream\n`
+    ),
+    jpeg,
+    encoder.encode('\nendstream'),
+  ]);
+  return buildPdf([
+    encoder.encode('<< /Type /Catalog /Pages 2 0 R >>'),
+    encoder.encode('<< /Type /Pages /Kids [3 0 R] /Count 1 >>'),
+    encoder.encode(
+      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${width} ${height}] ` +
+      '/Resources << /XObject << /Im1 5 0 R >> >> /Contents 4 0 R >>'
+    ),
+    contentStream,
+    imageStream,
+  ]);
+}
+
+async function createTextFixture(
+  text: string,
+  width = 1_400,
+  height = 260,
+  fontSize = 74
+): Promise<Uint8Array> {
+  const sharpPackage = 'sharp';
+  const { default: sharp } = await import(/* @vite-ignore */ sharpPackage);
+  const svgText = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const svg = Buffer.from(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">` +
+    `<rect width="100%" height="100%" fill="white"/>` +
+    `<text x="55" y="${Math.round(height * 0.62)}" font-family="Arial, sans-serif" ` +
+    `font-size="${fontSize}" font-weight="700" fill="#111">${svgText}</text></svg>`
+  );
+  return new Uint8Array(await sharp(svg).png().toBuffer());
+}
+
+async function createMultiFrameTiff(frames: Uint8Array[]): Promise<Uint8Array> {
+  const sharpPackage = 'sharp';
+  const { default: sharp } = await import(/* @vite-ignore */ sharpPackage);
+  const rawFrames = await Promise.all(frames.map(async frame => {
+    const result = await sharp(frame).grayscale().raw().toBuffer({ resolveWithObject: true });
+    return {
+      pixels: new Uint8Array(result.data),
+      width: result.info.width,
+      height: result.info.height,
+    };
+  }));
+  const entryCount = 9;
+  const ifdSize = 2 + entryCount * 12 + 4;
+  const pixelStart = 8 + ifdSize * rawFrames.length;
+  const output = new Uint8Array(pixelStart + rawFrames.reduce((sum, frame) => sum + frame.pixels.length, 0));
+  const view = new DataView(output.buffer);
+  output.set([0x49, 0x49, 0x2a, 0x00], 0);
+  view.setUint32(4, 8, true);
+
+  let nextPixelOffset = pixelStart;
+  for (let frameIndex = 0; frameIndex < rawFrames.length; frameIndex++) {
+    const frame = rawFrames[frameIndex];
+    const ifdOffset = 8 + frameIndex * ifdSize;
+    view.setUint16(ifdOffset, entryCount, true);
+    const entries = [
+      [256, 4, frame.width],
+      [257, 4, frame.height],
+      [258, 3, 8],
+      [259, 3, 1],
+      [262, 3, 1],
+      [273, 4, nextPixelOffset],
+      [277, 3, 1],
+      [278, 4, frame.height],
+      [279, 4, frame.pixels.length],
+    ];
+    entries.forEach(([tag, type, value], entryIndex) => {
+      const offset = ifdOffset + 2 + entryIndex * 12;
+      view.setUint16(offset, tag, true);
+      view.setUint16(offset + 2, type, true);
+      view.setUint32(offset + 4, 1, true);
+      if (type === 3) view.setUint16(offset + 8, value, true);
+      else view.setUint32(offset + 8, value, true);
+    });
+    const nextIfdOffset = ifdOffset + 2 + entryCount * 12;
+    view.setUint32(nextIfdOffset, frameIndex + 1 < rawFrames.length ? ifdOffset + ifdSize : 0, true);
+    output.set(frame.pixels, nextPixelOffset);
+    nextPixelOffset += frame.pixels.length;
+  }
+  return output;
 }
 
 // Helper to create a scanned PDF (no text streams)
@@ -268,6 +376,32 @@ export async function runDocumentProcessingTests(): Promise<{
     if (!terminated) throw new Error('Tesseract worker was not terminated.');
   });
 
+  await test('Readable original OCR avoids lower-quality preprocessing variants', async () => {
+    const previousProvider = process.env.OCR_PROVIDER;
+    process.env.OCR_PROVIDER = 'tesseract';
+    let recognizeCalls = 0;
+    const ocr = new OcrService(async () => ({
+      recognize: async () => {
+        recognizeCalls++;
+        return { data: { text: 'Readable original transcript', confidence: 83 } };
+      },
+      terminate: async () => undefined,
+    }));
+    try {
+      const result = await ocr.performOcr(
+        new Uint8Array([1]),
+        { filename: 'original.png', mimeType: 'image/png' },
+        [new Uint8Array([2]), new Uint8Array([3])]
+      );
+      if (recognizeCalls !== 1) throw new Error(`High-confidence original triggered ${recognizeCalls - 1} unnecessary variants.`);
+      if (result.text !== 'Readable original transcript') throw new Error('The original OCR transcript was not retained.');
+    } finally {
+      await ocr.close();
+      if (previousProvider === undefined) delete process.env.OCR_PROVIDER;
+      else process.env.OCR_PROVIDER = previousProvider;
+    }
+  });
+
   await test('Tesseract retries the fallback image when the primary variant fails', async () => {
     const previousProvider = process.env.OCR_PROVIDER;
     const previousMode = process.env.EXTRACTION_MODE;
@@ -305,31 +439,33 @@ export async function runDocumentProcessingTests(): Promise<{
     }
   });
 
-  await test('Gemini OCR failure falls back to Tesseract for scanned PDF pages', async () => {
+  await test('Low-confidence local OCR attempts Gemini fallback independently per scanned PDF page', async () => {
     const previousProvider = process.env.OCR_PROVIDER;
     const previousMode = process.env.EXTRACTION_MODE;
     process.env.OCR_PROVIDER = 'gemini';
     process.env.EXTRACTION_MODE = 'gemini';
     let recognizeCalls = 0;
+    let geminiCalls = 0;
     const ocr = new OcrService(
       async () => ({
         recognize: async () => {
           recognizeCalls++;
-          return { data: { text: `Recovered page ${recognizeCalls}`, confidence: 91 } };
+          return { data: { text: `Local page ${recognizeCalls}`, confidence: 20 } };
         },
         terminate: async () => undefined,
       }),
       async () => {
+        geminiCalls++;
         throw new Error('Gemini Vision request failed.');
       }
     );
 
     try {
       const result = await processPdf(createScannedPdfBytes(2), 'scanned.pdf', ocr);
-      if (recognizeCalls !== 2 || result.pages.some(page => !page.text.startsWith('Recovered page'))) {
-        throw new Error('Scanned PDF pages did not use Tesseract after Gemini failed.');
+      if (recognizeCalls !== 6 || geminiCalls !== 2 || result.pages.some(page => !page.text.startsWith('Local page'))) {
+        throw new Error('Each page must be OCRed locally before its low-confidence Gemini fallback.');
       }
-      if (!result.warnings.some(warning => warning.includes('Gemini OCR failed'))) {
+      if (!result.warnings.some(warning => warning.includes('Gemini OCR fallback failed'))) {
         throw new Error('Gemini OCR failure was not disclosed in the page warnings.');
       }
     } finally {
@@ -516,6 +652,220 @@ export async function runDocumentProcessingTests(): Promise<{
       throw new Error('File 3 should be processed despite File 2 failure');
     }
   });
+
+  const previousProvider = process.env.OCR_PROVIDER;
+  const previousMode = process.env.EXTRACTION_MODE;
+  process.env.OCR_PROVIDER = 'tesseract';
+  process.env.EXTRACTION_MODE = 'mock';
+
+  await test('Gemini OCR fallback is not used without an API key', async () => {
+    const previousKey = process.env.GEMINI_API_KEY;
+    delete process.env.GEMINI_API_KEY;
+    process.env.OCR_PROVIDER = 'auto';
+    const ocr = new OcrService(async () => ({
+      recognize: async () => ({ data: { text: 'Local OCR transcript', confidence: 24 } }),
+      terminate: async () => undefined,
+    }));
+    try {
+      const result = await ocr.performOcr(new Uint8Array([1]), { filename: 'local-only.png', mimeType: 'image/png' });
+      if (result.engineUsed !== 'tesseract' || result.text !== 'Local OCR transcript') {
+        throw new Error('Local OCR result was not retained when no Gemini key is configured.');
+      }
+      if (result.warnings?.some(warning => warning.includes('Gemini'))) {
+        throw new Error('Gemini fallback was attempted without an API key.');
+      }
+    } finally {
+      await ocr.close();
+      if (previousKey === undefined) delete process.env.GEMINI_API_KEY;
+      else process.env.GEMINI_API_KEY = previousKey;
+      process.env.OCR_PROVIDER = 'tesseract';
+    }
+  });
+
+  await test('Generated clean image uses local OCR and measured confidence', async () => {
+    const image = await createTextFixture('INVOICE OCR-CLEAN-503');
+    const result = await processImage(image, 'clean.png', 'image/png');
+    const page = result.pages[0];
+    if (!page.text.includes('OCR-CLEAN-503')) throw new Error(`Clean text was not recognized: ${page.text}`);
+    if (typeof page.confidence !== 'number' || page.confidence < 0 || page.confidence > 1) {
+      throw new Error(`Expected measured Tesseract confidence in [0, 1], got ${page.confidence}`);
+    }
+    if (page.isLowQuality !== (page.confidence < OCR_LOW_CONFIDENCE_THRESHOLD)) {
+      throw new Error('Page quality flag does not match the measured confidence threshold.');
+    }
+  });
+
+  await test('Generated skewed and noisy image is deskewed and denoised before local OCR', async () => {
+    const sharpPackage = 'sharp';
+    const { default: sharp } = await import(/* @vite-ignore */ sharpPackage);
+    const clean = await createTextFixture('SKEWED-NOISY-42');
+    const noise = Buffer.from(
+      `<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="260">` +
+      Array.from({ length: 180 }, (_, index) => {
+        const x = (index * 97 + 31) % 1400;
+        const y = (index * 53 + 17) % 260;
+        return `<circle cx="${x}" cy="${y}" r="2" fill="#777" opacity=".35"/>`;
+      }).join('') +
+      '</svg>'
+    );
+    const noisy = new Uint8Array(await sharp(clean)
+      .composite([{ input: noise }])
+      .rotate(4, { background: '#ffffff' })
+      .png()
+      .toBuffer());
+    const result = await processImage(noisy, 'skewed-noisy.png', 'image/png');
+    if (!result.pages[0].text.includes('SKEWED-NOISY-42')) {
+      throw new Error(`Skewed/noisy fixture text was not recognized: ${result.pages[0].text}`);
+    }
+    if (typeof result.pages[0].confidence !== 'number') {
+      throw new Error('Skewed/noisy OCR did not return measured Tesseract confidence.');
+    }
+  });
+
+  await test('Generated low-resolution JPEG is upscaled for local OCR', async () => {
+    const sharpPackage = 'sharp';
+    const { default: sharp } = await import(/* @vite-ignore */ sharpPackage);
+    const source = await createTextFixture('LOWRES JPEG-77', 900, 180, 62);
+    const jpeg = new Uint8Array(await sharp(source).resize(180, 36).jpeg({ quality: 35 }).toBuffer());
+    const result = await processImage(jpeg, 'low-resolution.jpg', 'image/jpeg');
+    if (!result.pages[0].text.includes('LOWRES')) {
+      throw new Error(`Low-resolution JPEG text was not recognized: ${result.pages[0].text}`);
+    }
+    if (typeof result.pages[0].confidence !== 'number') {
+      throw new Error('Low-resolution OCR did not return measured Tesseract confidence.');
+    }
+  });
+
+  await test('Generated blank image is marked low quality without inferred text', async () => {
+    const sharpPackage = 'sharp';
+    const { default: sharp } = await import(/* @vite-ignore */ sharpPackage);
+    const blank = new Uint8Array(await sharp({
+      create: { width: 420, height: 160, channels: 3, background: '#ffffff' },
+    }).png().toBuffer());
+    const result = await processImage(blank, 'blank.png', 'image/png');
+    const page = result.pages[0];
+    if (typeof page.confidence !== 'number' || page.confidence >= OCR_LOW_CONFIDENCE_THRESHOLD) {
+      throw new Error(`Blank image should have a measured low confidence, got ${page.confidence}.`);
+    }
+    if (!page.isLowQuality) throw new Error('Blank image page was not flagged as low quality.');
+    if (page.text.includes('OCR-CLEAN') || page.text.includes('Invoice Number:')) {
+      throw new Error('Blank image caused invoice text to be inferred.');
+    }
+  });
+
+  await test('Generated multi-frame TIFF OCRs each frame and reports progress', async () => {
+    const frameOne = await createTextFixture('TIFF-FRAME-1');
+    const frameTwo = await createTextFixture('TIFF-FRAME-2');
+    const tiff = await createMultiFrameTiff([frameOne, frameTwo]);
+    const progress: number[] = [];
+    const result = await processImage(
+      tiff,
+      'two-page.tiff',
+      'image/tiff',
+      undefined,
+      update => progress.push(update.progress)
+    );
+    if (result.pages.length !== 2) throw new Error(`Expected 2 TIFF frames, got ${result.pages.length}.`);
+    if (!result.pages[0].text.includes('TIFF-FRAME-1') || !result.pages[1].text.includes('TIFF-FRAME-2')) {
+      throw new Error(`TIFF frame OCR failed: ${result.pages.map(page => page.text).join(' | ')}`);
+    }
+    if (progress.length !== 2 || progress[1] !== 1) {
+      throw new Error(`Expected per-frame progress through 100%, got ${progress.join(', ')}.`);
+    }
+  });
+
+  await test('Generated image-only PDF rasterizes and OCRs the page independently', async () => {
+    const sharpPackage = 'sharp';
+    const { default: sharp } = await import(/* @vite-ignore */ sharpPackage);
+    const source = await createTextFixture('SCANNED-PDF-9', 1400, 260);
+    const jpegResult = await sharp(source).jpeg({ quality: 95 }).toBuffer({ resolveWithObject: true });
+    const pdfBytes = createImageOnlyPdfBytes(
+      new Uint8Array(jpegResult.data),
+      jpegResult.info.width,
+      jpegResult.info.height
+    );
+    const progress: number[] = [];
+    const result = await processPdf(
+      pdfBytes,
+      'scanned-image-only.pdf',
+      ocrService,
+      update => progress.push(update.progress)
+    );
+    if (result.pages.length !== 1 || !result.pages[0].isOcr) {
+      throw new Error('Image-only PDF page was not independently sent to OCR.');
+    }
+    if (!result.pages[0].text.includes('SCANNED-PDF-9')) {
+      throw new Error(`Scanned PDF text was not recognized: ${result.pages[0].text}`);
+    }
+    if (typeof result.pages[0].confidence !== 'number') {
+      throw new Error('Scanned PDF page did not preserve measured Tesseract confidence.');
+    }
+    if (progress.length !== 1 || progress[0] !== 1) {
+      throw new Error(`Scanned PDF page progress was not reported: ${progress.join(', ')}.`);
+    }
+  });
+
+  await test('Generated corrupted image is rejected without throwing out of the pipeline', async () => {
+    const corrupted = new Uint8Array([
+      0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+      0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52,
+      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    ]);
+    const result = await documentPipeline.processSingleFile({
+      name: 'corrupted-image.png',
+      size: corrupted.length,
+      data: corrupted,
+    });
+    if (result.status !== 'failed' || result.errors.length === 0) {
+      throw new Error('Corrupted image should return a structured failed document result.');
+    }
+  });
+
+  await test('A failed OCR page does not fail the rest of a scanned PDF', async () => {
+    let ocrCalls = 0;
+    const failingPageOcr = {
+      performOcr: async (_data: Uint8Array | string, options: { filename?: string }) => {
+        ocrCalls++;
+        if (options.filename?.endsWith('#page=2')) throw new Error('Synthetic page OCR failure.');
+        return {
+          text: 'Recovered page one',
+          confidence: 0.9,
+          engineUsed: 'tesseract' as const,
+          wordCount: 3,
+          lineCount: 1,
+          tested: true,
+        };
+      },
+    };
+    const progress: number[] = [];
+    const result = await processPdf(
+      createScannedPdfBytes(2),
+      'fault-isolation.pdf',
+      failingPageOcr,
+      update => progress.push(update.progress)
+    );
+    if (ocrCalls !== 2 || result.pages.length !== 2) {
+      throw new Error('Both scanned PDF pages must remain represented after one OCR page failure.');
+    }
+    if (!result.pages[0].text.includes('Recovered page one') || result.pages[1].text !== '') {
+      throw new Error('The successful page was lost or the failed page produced an invalid transcript.');
+    }
+    if (!result.warnings.some(warning => warning.includes('Page 2 ocr failed and was isolated'))) {
+      throw new Error('The failed page did not produce an isolation warning.');
+    }
+    if (progress.length !== 2 || progress[1] !== 1) {
+      throw new Error('Progress was not reported after the isolated page failure.');
+    }
+  });
+
+  try {
+    await ocrService.close();
+  } finally {
+    if (previousProvider === undefined) delete process.env.OCR_PROVIDER;
+    else process.env.OCR_PROVIDER = previousProvider;
+    if (previousMode === undefined) delete process.env.EXTRACTION_MODE;
+    else process.env.EXTRACTION_MODE = previousMode;
+  }
 
   const passed = results.filter(r => r.passed).length;
   const failed = results.filter(r => !r.passed).length;

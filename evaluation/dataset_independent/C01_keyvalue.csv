@@ -1,0 +1,11 @@
+Invoice Number,INV-2026-701
+Invoice Date,2026-07-01
+Supplier,Tidewater Chemicals Inc
+Customer,Orchard Farms LLC
+Currency,USD
+Item,Qty,Unit Price,Amount
+Fertilizer 50lb,20,18.00,360.00
+Soil test kit,5,40.00,200.00
+Subtotal,,,560.00
+Tax,,,44.80
+Total,,,604.80

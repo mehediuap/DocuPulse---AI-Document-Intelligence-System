@@ -1,0 +1,2 @@
+invoice_number,invoice_date,supplier,customer,subtotal,tax,total,currency
+INV-2026-702,2026-07-02,Falcon Roofing Supply,Ridgeview Homes,3200.00,192.00,3392.00,USD

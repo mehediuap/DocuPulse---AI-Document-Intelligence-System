@@ -1,0 +1,16 @@
+INVOICE
+
+Invoice No: INV-2026-902
+
+Date: 2026-08-02
+
+Supplier: Quarry Stone Works
+Customer: Hillcrest Landscaping
+
+Granite slab 4 310.00 1,240.00
+Delivery 1 95.00 95.00
+
+Subtotal: 1,335.00 -
+Tax: 106.80
+
+Total: 1,441.80 USD

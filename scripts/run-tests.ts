@@ -7,6 +7,11 @@ import { runInformationExtractionTests } from '../src/services/extraction/tests.
 import { runDataValidationTests } from '../src/services/validation/tests.ts';
 import { runBackendApiTests } from '../src/services/api/tests.ts';
 import { runDatabaseAndSearchTests } from '../src/services/database/tests.ts';
+import { runSecurityTests } from '../src/services/api/security.tests.ts';
+import { runPdfProcessorTests } from '../src/services/document/pdfProcessor.tests.ts';
+import { runReconciliationTests } from '../src/services/validation/reconciliation.tests.ts';
+import { runGroundingTests } from '../src/services/extraction/grounding.tests.ts';
+import { runAdapterTests } from '../src/services/extraction/adapter.tests.ts';
 
 async function main() {
   console.log('================================================================');
@@ -63,9 +68,30 @@ async function main() {
     }
   }
 
-  const total = task1Suite.total + task2Suite.total + task3Suite.total + task4Suite.total + task5Suite.total;
-  const passed = task1Suite.passed + task2Suite.passed + task3Suite.passed + task4Suite.passed + task5Suite.passed;
-  const failed = task1Suite.failed + task2Suite.failed + task3Suite.failed + task4Suite.failed + task5Suite.failed;
+  console.log('\n--- MODULE 6: HARDENING (SECURITY, PDF SAFETY, RECONCILIATION, GROUNDING, ADAPTER) ---');
+  const hardeningSuites = [
+    await runSecurityTests(),
+    await runPdfProcessorTests(),
+    await runReconciliationTests(),
+    await runGroundingTests(),
+    await runAdapterTests(),
+  ];
+  for (const suite of hardeningSuites) {
+    for (const r of suite.results) {
+      const symbol = r.passed ? '✓ PASS' : '✗ FAIL';
+      console.log(`[${symbol}] ${r.name} (${r.durationMs}ms)`);
+      if (!r.passed) console.log(`    Error: ${r.details}`);
+    }
+  }
+  const hardening = {
+    total: hardeningSuites.reduce((sum, suite) => sum + suite.total, 0),
+    passed: hardeningSuites.reduce((sum, suite) => sum + suite.passed, 0),
+    failed: hardeningSuites.reduce((sum, suite) => sum + suite.failed, 0),
+  };
+
+  const total = task1Suite.total + task2Suite.total + task3Suite.total + task4Suite.total + task5Suite.total + hardening.total;
+  const passed = task1Suite.passed + task2Suite.passed + task3Suite.passed + task4Suite.passed + task5Suite.passed + hardening.passed;
+  const failed = task1Suite.failed + task2Suite.failed + task3Suite.failed + task4Suite.failed + task5Suite.failed + hardening.failed;
 
   console.log('\n================================================================');
   console.log(`Overall Summary: ${passed} passed, ${failed} failed of ${total} total tests.`);

@@ -1,21 +1,12 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import {
-  FileText,
   Upload,
   CheckCircle2,
-  AlertTriangle,
   XCircle,
-  Play,
-  RotateCw,
-  Eye,
-  FileSpreadsheet,
-  Image as ImageIcon,
-  Table as TableIcon,
   ShieldCheck,
   Activity,
   Layers,
   Database,
-  Search,
   Server,
   Code,
   ExternalLink,
@@ -24,7 +15,7 @@ import {
   KeyRound,
 } from 'lucide-react';
 
-import { api, FrontendApiError, getApiAuthToken, setApiAuthToken } from './frontend/api.ts';
+import { api, getApiAuthToken, setApiAuthToken } from './frontend/api.ts';
 import {
   DocumentMetadataResponse,
   DocumentResultResponse,
@@ -37,9 +28,6 @@ import { DocumentTable } from './frontend/components/DocumentTable.tsx';
 import { DocumentDetailModal } from './frontend/components/DocumentDetailModal.tsx';
 import { CrossVerificationView } from './frontend/components/CrossVerificationView.tsx';
 import { SemanticSearchView } from './frontend/components/SemanticSearchView.tsx';
-import { runDocumentProcessingTests, TestRunResult } from './services/document/tests.ts';
-import { runInformationExtractionTests } from './services/extraction/tests.ts';
-import { runDataValidationTests } from './services/validation/tests.ts';
 
 type NavigationTab = 'dashboard' | 'semantic' | 'crossverify' | 'upload' | 'verification' | 'specs';
 
@@ -76,26 +64,6 @@ export default function App() {
     type: 'success' | 'error' | 'info';
     message: string;
   } | null>(null);
-
-  // Client-side automated tests
-  const [suiteResults, setSuiteResults] = useState<{
-    isRunning: boolean;
-    hasRun: boolean;
-    total: number;
-    passed: number;
-    failed: number;
-    categories: Array<{
-      category: string;
-      tests: TestRunResult[];
-    }>;
-  }>({
-    isRunning: false,
-    hasRun: false,
-    total: 0,
-    passed: 0,
-    failed: 0,
-    categories: [],
-  });
 
   const notifyTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -263,38 +231,6 @@ export default function App() {
       showNotification('error', `Correction rejected: ${err.message}`);
       throw err;
     }
-  };
-
-  // Client-side execution of automated verification suites
-  const executeVerificationSuites = async () => {
-    setSuiteResults(prev => ({ ...prev, isRunning: true }));
-
-    const categories: Array<{ category: string; tests: TestRunResult[] }> = [];
-
-    // Module 1: Document Processing (13 tests)
-    const task1 = await runDocumentProcessingTests();
-    categories.push({ category: 'Module 1: Multi-Format Document Processing', tests: task1.results });
-
-    // Module 2: AI Information Extraction (8 tests)
-    const task2 = await runInformationExtractionTests();
-    categories.push({ category: 'Module 2: AI Information Extraction', tests: task2.results });
-
-    // Module 3: Data Validation & Cross-Verification (11 tests)
-    const task3 = await runDataValidationTests();
-    categories.push({ category: 'Module 3: Data Validation & Cross-Verification', tests: task3.results });
-
-    const total = task1.total + task2.total + task3.total;
-    const passed = task1.passed + task2.passed + task3.passed;
-    const failed = task1.failed + task2.failed + task3.failed;
-
-    setSuiteResults({
-      isRunning: false,
-      hasRun: true,
-      total,
-      passed,
-      failed,
-      categories,
-    });
   };
 
   return (
@@ -529,7 +465,6 @@ export default function App() {
         {currentTab === 'crossverify' && (
           <CrossVerificationView
             documents={documents}
-            onSelectDocument={handleSelectDocument}
             showNotification={showNotification}
           />
         )}
@@ -567,104 +502,15 @@ export default function App() {
                   <span>Automated Verification Suite</span>
                 </h3>
                 <p className="text-xs text-slate-500 mt-1">
-                  Executes unit, contract, and hermetic integration checks across Module 1 (Parsing), Module 2 (AI Extraction), and Module 3 (Financial Validation).
+                  Run the hermetic document-processing, extraction, validation, API, and database checks from the project directory.
                 </p>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={executeVerificationSuites}
-                  disabled={suiteResults.isRunning}
-                  className="px-4 py-2 text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 rounded-md transition-colors disabled:opacity-50 flex items-center gap-2 cursor-pointer shadow-xs"
-                >
-                  <RotateCw className={`w-3.5 h-3.5 ${suiteResults.isRunning ? 'animate-spin' : ''}`} />
-                  <span>{suiteResults.isRunning ? 'Executing Test Runner...' : 'Execute Automated Tests'}</span>
-                </button>
               </div>
             </div>
-
-            {suiteResults.hasRun ? (
-              <div className="flex flex-col gap-6">
-                {/* Summary Strip */}
-                <div className="flex flex-wrap items-center gap-6 p-4 rounded-lg bg-slate-50 border border-slate-200 text-xs font-mono">
-                  <div>
-                    <span className="text-slate-500">Total Executed:</span>{' '}
-                    <strong className="text-slate-900">{suiteResults.total}</strong>
-                  </div>
-                  <div>
-                    <span className="text-emerald-700">Passed:</span>{' '}
-                    <strong className="text-emerald-700">{suiteResults.passed}</strong>
-                  </div>
-                  <div>
-                    <span className={suiteResults.failed > 0 ? 'text-rose-700 font-bold' : 'text-slate-500'}>
-                      Failed:
-                    </span>{' '}
-                    <strong className={suiteResults.failed > 0 ? 'text-rose-700 font-bold' : 'text-slate-700'}>
-                      {suiteResults.failed}
-                    </strong>
-                  </div>
-                  <div>
-                    <span className="text-slate-500">Success Rate:</span>{' '}
-                    <strong className="text-emerald-700">
-                      {Math.round((suiteResults.passed / (suiteResults.total || 1)) * 100)}%
-                    </strong>
-                  </div>
-                  <div className="ml-auto font-sans font-semibold text-xs">
-                    {suiteResults.failed === 0 ? (
-                      <span className="text-emerald-700 flex items-center gap-1">
-                        <CheckCircle2 className="w-4 h-4" /> ALL VERIFICATION TESTS PASSING
-                      </span>
-                    ) : (
-                      <span className="text-rose-700 flex items-center gap-1">
-                        <XCircle className="w-4 h-4" /> REGRESSIONS DETECTED
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                {/* Categorized Test Blocks */}
-                {suiteResults.categories.map((cat, cIdx) => (
-                  <div key={cIdx} className="border border-slate-200 rounded-lg overflow-hidden">
-                    <div className="px-4 py-2.5 bg-slate-100/70 border-b border-slate-200 font-semibold text-xs text-slate-800">
-                      {cat.category} ({cat.tests.length} tests)
-                    </div>
-                    <div className="divide-y divide-slate-100 font-mono text-xs">
-                      {cat.tests.map((t, tIdx) => (
-                        <div
-                          key={tIdx}
-                          className={`p-3 flex items-start justify-between gap-3 ${
-                            t.passed ? 'bg-white' : 'bg-rose-50/50'
-                          }`}
-                        >
-                          <div className="flex items-start gap-2.5">
-                            {t.passed ? (
-                              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                            ) : (
-                              <XCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-                            )}
-                            <div>
-                              <div className="font-medium text-slate-900">{t.name}</div>
-                              <div className="text-[11px] text-slate-500 mt-0.5">{t.details}</div>
-                            </div>
-                          </div>
-                          <span className="text-[11px] text-slate-400 shrink-0">{t.durationMs}ms</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="p-12 text-center text-xs text-slate-500 border border-dashed border-slate-200 rounded-lg">
-                <Play className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-                <div className="font-semibold text-slate-700">Test Runner Idle</div>
-                <p className="mt-1 max-w-md mx-auto text-slate-400">
-                  Click &quot;Execute Automated Tests&quot; above to run the verification suite directly in the browser, or run{' '}
-                  <code className="bg-slate-100 px-1.5 py-0.5 rounded font-mono text-slate-700">npm run test</code>{' '}
-                  in the terminal to execute all 51 hermetic tests across all 5 modules.
-                </p>
-              </div>
-            )}
+            <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-6 text-sm text-slate-600">
+              Automated tests use Node.js-only services and run in the terminal, not in the browser. Execute{' '}
+              <code className="rounded bg-white px-1.5 py-0.5 font-mono text-slate-800">npm test</code>{' '}
+              from the project directory to run the full suite.
+            </div>
           </div>
         )}
 

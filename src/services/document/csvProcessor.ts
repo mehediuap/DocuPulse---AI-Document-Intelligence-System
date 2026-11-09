@@ -18,7 +18,7 @@ export async function processCsv(
   const warnings: string[] = [];
 
   // 1. Decode text with encoding check (UTF-8 with BOM or fallback)
-  let text = '';
+  let text: string;
   let encoding = 'UTF-8';
 
   if (typeof data === 'string') {

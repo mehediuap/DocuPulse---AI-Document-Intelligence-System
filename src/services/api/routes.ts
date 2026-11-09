@@ -11,6 +11,7 @@ import { documentController, HttpError } from './documentController.ts';
 import { JobStatus } from './types.ts';
 import { apiAuthenticationMiddleware, getAuthenticatedActor } from './authentication.ts';
 import { getIncomingUploadDirectory } from '../document/sourceStorage.ts';
+import { safeErrorHandler } from './errorHandler.ts';
 
 export const apiRouter = express.Router();
 apiRouter.use('/api/v1/documents', apiAuthenticationMiddleware);
@@ -229,21 +230,7 @@ apiRouter.get('/api/v1/openapi.json', (_req: Request, res: Response) => {
   res.json(openApiSpecification);
 });
 
-/**
- * Defensive error handling middleware.
- * Never leaks server paths, stack traces, or internal secrets.
- */
-export function safeErrorHandler(err: unknown, _req: Request, res: Response, _next: NextFunction) {
-  const knownError = err instanceof HttpError;
-  if (!knownError) console.error('Unhandled API request failure:', err);
-  const publicError = toPublicApiError(err);
-  const { statusCode, ...error } = publicError;
-
-  res.status(statusCode).json({
-    success: false,
-    error,
-  });
-}
+export { safeErrorHandler };
 
 export function toPublicApiError(err: unknown): {
   statusCode: number;
@@ -252,6 +239,23 @@ export function toPublicApiError(err: unknown): {
   field?: string;
 } {
   if (!(err instanceof HttpError)) {
+    if (typeof err === 'object' && err !== null && 'type' in err) {
+      const bodyParserError = err as { type?: unknown };
+      if (bodyParserError.type === 'entity.too.large') {
+        return {
+          statusCode: 413,
+          code: 'PAYLOAD_TOO_LARGE',
+          message: 'Request body is too large.',
+        };
+      }
+      if (bodyParserError.type === 'entity.parse.failed') {
+        return {
+          statusCode: 400,
+          code: 'INVALID_JSON',
+          message: 'Request body is not valid JSON.',
+        };
+      }
+    }
     return {
       statusCode: 500,
       code: 'INTERNAL_SERVER_ERROR',

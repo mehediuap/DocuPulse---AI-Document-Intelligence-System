@@ -134,6 +134,27 @@ export async function runInformationExtractionTests(): Promise<{
     if (schemaSymbol.data.currency !== null) throw new Error('Schema inferred USD from an ambiguous dollar sign');
   });
 
+  await test('OCR confusable digits and punctuation are normalized only in labeled fields', async () => {
+    const adapter = new MockRuleBasedAdapter();
+    const result = await adapter.extract(
+      'Invoice No: INV-2026-902\n' +
+      'Date: 2026-08-O2\n' +
+      '‘Supplier: Quarry Stone Works\n' +
+      'Subtotal’ 1,335.OO\n' +
+      'Tax: 1O6.8O\n' +
+      '"Total: 1,44l.8O USO'
+    );
+    if (result.invoice_date !== '2026-08-02') throw new Error(`OCR-confusable date was not normalized: ${result.invoice_date}`);
+    if (result.supplier_name !== 'Quarry Stone Works') throw new Error(`Leading OCR punctuation blocked the supplier: ${result.supplier_name}`);
+    if (result.subtotal !== 1335) throw new Error(`OCR-confusable subtotal was not normalized: ${result.subtotal}`);
+    if (result.tax !== 106.8) throw new Error(`OCR-confusable tax was not normalized: ${result.tax}`);
+    if (result.total !== 1441.8) throw new Error(`OCR-confusable total was not normalized: ${result.total}`);
+    if (result.currency !== 'USD') throw new Error(`Unambiguous OCR-confusable currency was not corrected: ${result.currency}`);
+
+    const unrelated = await adapter.extract('Supplier: OI Services LLC\nTotal: 1O.0O');
+    if (unrelated.total !== 10) throw new Error(`OCR numeric confusables were not handled in a labeled amount: ${unrelated.total}`);
+  });
+
   await test('Spreadsheet key/value rows are not mistaken for table headers', async () => {
     const adapter = new MockRuleBasedAdapter();
     const workbookText =
@@ -350,7 +371,12 @@ export async function runInformationExtractionTests(): Promise<{
     // Adapter with empty dummy key to test safe catch block
     const adapter = new GeminiExtractionAdapter('dummy-key');
     const res = await adapter.extract('Sample text', { timeoutMs: 50 });
-    if (res.extraction_metadata.mode !== 'gemini_llm') throw new Error('Mode should be gemini_llm');
+    if (res.extraction_metadata.mode !== 'mock_rule_based') {
+      throw new Error('A rule-based fallback result must be labelled mock_rule_based, not gemini_llm');
+    }
+    if (!/fallback/.test(res.extraction_metadata.model_used || '')) {
+      throw new Error('model_used should say it was a fallback');
+    }
     if (res.extraction_metadata.warnings.length === 0) throw new Error('Should contain provider failure warning');
     if (res.invoice_number !== null) throw new Error('Failed call should leave fields null');
   });
